@@ -138,7 +138,8 @@
     </div>
 
     <script>
-        const socket = io();
+        //const socket = io();
+        const socket = io('https://multiagent-llm-chess.onrender.com');
         let board = null;
         let game = new Chess();
         let aiInterval = null;
