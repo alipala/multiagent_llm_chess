@@ -61,28 +61,87 @@ llm_config = {
 logger.info(f"Config list: {config_list}")
 
 # Chess knowledge base
-chess_knowledge = """
-Chess Opening Principles:
-1. Control the center
-2. Develop your pieces
-3. Castle early
-4. Don't move the same piece twice in the opening
-5. Don't bring your queen out too early
+chess_openings = """
+1. Ruy Lopez (Spanish Opening):
+   - Move order: 1.e4 e5 2.Nf3 Nc6 3.Bb5
+   - Key ideas: Control the center, pressure Black's e5 pawn, prepare castling
+   - Variations: Berlin Defense, Marshall Attack, Closed Variation
 
-Chess Middlegame Strategies:
-1. Create and exploit weaknesses
-2. Control open files and diagonals
-3. Coordinate your pieces
-4. Plan your pawn breaks
-5. Look for tactical opportunities
+2. Sicilian Defense:
+   - Move order: 1.e4 c5
+   - Key ideas: Fight for d4 square, create imbalanced positions
+   - Variations: Najdorf, Dragon, Scheveningen, Classical
 
-Chess Endgame Techniques:
-1. Activate your king
-2. Create passed pawns
-3. Cut off the opponent's king
-4. Know basic checkmate patterns
-5. Understand opposition and zugzwang
+3. Queen's Gambit:
+   - Move order: 1.d4 d5 2.c4
+   - Key ideas: Control the center, develop pieces quickly
+   - Variations: Accepted, Declined, Slav Defense
 
+4. King's Indian Defense:
+   - Move order: 1.d4 Nf6 2.c4 g6
+   - Key ideas: Hypermodern approach, control the center from afar
+   - Variations: Classical, Sämisch, Four Pawns Attack
+
+5. French Defense:
+   - Move order: 1.e4 e6
+   - Key ideas: Solid structure, counterattack in the center
+   - Variations: Winawer, Classical, Tarrasch
+"""
+
+chess_middlegame = """
+1. Pawn Structures:
+   - Isolated Queen's Pawn: Control key squares, prepare minority attack
+   - Hanging Pawns: Maintain tension, avoid exchanges that weaken structure
+   - Pawn Chains: Attack at the base, play on the side where you have space advantage
+
+2. Piece Coordination:
+   - Rooks on Open Files: Double rooks, control open files
+   - Bishop Pair: Maintain both bishops, create threats on long diagonals
+   - Knight Outposts: Establish knights in enemy territory, supported by pawns
+
+3. King Safety:
+   - Fianchettoed Bishop: Maintain the fianchetto, avoid weakening pawn structure
+   - Castled Position: Avoid pawn moves in front of the king, maintain pawn shield
+   - Opposite Side Castling: Launch pawn storm, open lines for attack
+
+4. Strategic Concepts:
+   - Space Advantage: Restrict opponent's pieces, prepare pawn breaks
+   - Weak Squares: Create and exploit weak squares in enemy position
+   - Piece Activity: Activate pieces, control key squares and diagonals
+
+5. Tactical Motifs:
+   - Pin: Create and exploit pins, especially against king or undefended pieces
+   - Fork: Set up knight forks, discover opportunities for double attacks
+   - Discovered Attack: Prepare powerful discovered checks or attacks
+"""
+
+chess_endgame = """
+1. Pawn Endgames:
+   - Opposition: Understand and use opposition to promote pawns
+   - Pawn Breakthrough: Calculate pawn breaks to create passed pawns
+   - Key Squares: Identify and control key squares for pawn promotion
+
+2. Rook Endgames:
+   - Lucena Position: Learn the winning technique for rook and pawn vs rook
+   - Philidor Position: Understand defensive techniques in rook endgames
+   - Rook Behind Passed Pawn: Place rook behind passed pawns (yours or opponent's)
+
+3. Minor Piece Endgames:
+   - Bishop vs Knight: Exploit the strengths of bishop in open positions
+   - Same-Colored Bishops: Understand drawing techniques and winning chances
+   - Knight Endgames: Centralize knight, create and exploit weaknesses
+
+4. Queen Endgames:
+   - Queen vs Pawn: Learn winning techniques and drawing fortresses
+   - Queen vs Rook: Understand skewer and stalemate motifs
+
+5. Theoretical Positions:
+   - Vancura Position: Defensive technique in rook vs rook and pawn
+   - Troitzky Line: Winning positions in two knights vs pawn endgames
+   - König's Technique: Winning method in queen vs rook endgames
+"""
+
+chess_general_tips = """
 General Chess Tips:
 1. Always have a plan
 2. Calculate variations thoroughly
@@ -91,14 +150,17 @@ General Chess Tips:
 5. Study classic games and puzzles
 """
 
+# Combine all chess knowledge
+comprehensive_chess_knowledge = chess_openings + chess_middlegame + chess_endgame + chess_general_tips
+
 # Set up RAG system
 embeddings = OpenAIEmbeddings()
-text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-texts = text_splitter.split_text(chess_knowledge)
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+texts = text_splitter.split_text(comprehensive_chess_knowledge)
 docsearch = Chroma.from_texts(texts, embeddings, metadatas=[{"source": str(i)} for i in range(len(texts))])
 
 # Create a retriever with a limit on the number of results
-retriever = docsearch.as_retriever(search_kwargs={"k": 1})
+retriever = docsearch.as_retriever(search_kwargs={"k": 3})
 
 # Set up the RetrievalQA
 qa = RetrievalQA.from_chain_type(
@@ -136,12 +198,26 @@ game_tracker = GameTracker()
 
 # Game functions
 def get_best_move(board_fen: str, legal_moves: List[str]) -> Tuple[str, str]:
-    query = f"""Given the current chess position (FEN: {board_fen}) and legal moves {legal_moves}, 
-    what's the best move? Respond with the move in UCI format followed by a brief explanation of why it's a good move. 
-    Format your response as: 'move: explanation'"""
+    query = f"""
+    Analyze the current chess position (FEN: {board_fen}) and suggest the best move from the legal moves: {legal_moves}.
+    Consider the following:
+    1. The current stage of the game (opening, middlegame, or endgame)
+    2. Relevant opening theory if in the early game
+    3. Positional and tactical considerations
+    4. Long-term strategic implications of the move
+    
+    Provide your response in the following format:
+    Move: [best move in UCI format]
+    Explanation: [detailed explanation of why this move is best]
+    """
     result = qa.run(query)
-    move, explanation = result.split(': ', 1)
-    return move.strip(), explanation.strip()
+    
+    # Parse the result to extract move and explanation
+    move_line = result.split('\n')[0]
+    explanation = '\n'.join(result.split('\n')[1:])
+    
+    move = move_line.split(': ')[1].strip()
+    return move, explanation
 
 def get_legal_moves() -> str:
     return "Possible moves are: " + ",".join([move.uci() for move in board.legal_moves])
