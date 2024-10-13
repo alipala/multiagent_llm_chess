@@ -363,6 +363,9 @@ def handle_ai_move():
         'legal_moves': [m.uci() for m in board.legal_moves],
         'game_over': game_over
     })
+    if game_over:
+        summary = summarize_game(game_tracker, board.result(), move_count)
+        emit('game_summary', {'summary': summary})
 
 @socketio.on('reset_game')
 def handle_reset_game():
