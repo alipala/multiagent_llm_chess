@@ -464,7 +464,10 @@ def handle_get_pgn():
     pgn = export_game_to_pgn(board)
     emit('pgn_data', {'pgn': pgn})
 
-
+# if __name__ == '__main__':
+#   logger.info("Starting the Chess AI application")
+#   port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port)
 if __name__ == '__main__':
     logger.info("Starting the Chess AI application")
     socketio.run(app, debug=False, host='0.0.0.0', port=5001)
