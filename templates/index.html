@@ -4,19 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chess Game</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .game-container {
+            display: grid;
+            grid-template-columns: auto 300px;
+            grid-gap: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #board {
+            width: 400px;
+        }
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+        }
+        #status, #captured-pieces {
+            margin-bottom: 10px;
+        }
         #move-history {
-            max-height: 200px;
+            flex-grow: 1;
             overflow-y: auto;
             border: 1px solid #ccc;
             padding: 10px;
-            margin-top: 20px;
+            height: 300px;
         }
         .move-item {
             margin-bottom: 5px;
@@ -27,19 +54,39 @@
         .black-move {
             color: #666;
         }
+        button {
+            margin: 5px 0;
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
-        <div id="board"></div>
-        <div id="status"></div>
-        <button id="start-ai-game">Start AI vs AI Game</button>
-        <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
-        <button id="ai-move">AI Move</button>
-        <button id="reset-game">Reset Game</button>
-        <button id="export-pgn">Export PGN</button>
-        <div id="move-history"></div>
-        <div id="game-summary"></div>
+        <div class="board-container">
+            <div id="board"></div>
+            <div id="status"></div>
+            <div id="captured-pieces">
+                <div>White captured: <span id="white-captured"></span></div>
+                <div>Black captured: <span id="black-captured"></span></div>
+            </div>
+        </div>
+        <div class="side-panel">
+            <div id="move-history"></div>
+            <button id="start-ai-game">Start AI vs AI Game</button>
+            <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
+            <button id="ai-move">AI Move</button>
+            <button id="reset-game">Reset Game</button>
+            <button id="export-pgn">Export PGN</button>
+        </div>
     </div>
 
     <script>
@@ -47,6 +94,7 @@
         let board = null;
         let game = new Chess();
         let aiInterval = null;
+        let capturedPieces = { w: '', b: '' };
 
         function onDragStart(source, piece, position, orientation) {
             if (game.game_over()) return false;
@@ -96,6 +144,20 @@
             moveHistory.scrollTop = moveHistory.scrollHeight;
         }
 
+        function updateCapturedPieces(move) {
+            const capturedPiece = game.get(move.to);
+            if (capturedPiece) {
+                const color = capturedPiece.color === 'w' ? 'b' : 'w';
+                capturedPieces[color] += getPieceSymbol(capturedPiece.type);
+                $(`#${color === 'w' ? 'white' : 'black'}-captured`).text(capturedPieces[color]);
+            }
+        }
+
+        function getPieceSymbol(piece) {
+            const symbols = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' };
+            return symbols[piece] || '';
+        }
+
         function startAIGame() {
             $('#start-ai-game').hide();
             $('#stop-ai-game').show();
@@ -123,6 +185,9 @@
             game.reset();
             board.position('start');
             $('#move-history').empty();
+            capturedPieces = { w: '', b: '' };
+            $('#white-captured').text('');
+            $('#black-captured').text('');
             updateStatus();
             stopAIGame();
             socket.emit('reset_game');
@@ -155,9 +220,10 @@
             });
 
             if (move) {
-                board.position(game.fen(), true); // The 'true' parameter enables animation
+                board.position(game.fen());
                 updateStatus();
                 updateMoveHistory(data.move, data.result);
+                updateCapturedPieces(move);
             }
 
             if (data.game_over) {
@@ -186,7 +252,7 @@
         $('#start-ai-game').click(startAIGame);
         $('#stop-ai-game').click(stopAIGame);
         $('#ai-move').click(requestAIMove);
-        $('#reset-game').click(resetGame)
+        $('#reset-game').click(resetGame);
         $('#export-pgn').click(() => {
             socket.emit('get_pgn');
         });
