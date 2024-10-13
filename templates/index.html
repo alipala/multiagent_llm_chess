@@ -28,25 +28,38 @@
             border-radius: 15px;
             box-shadow: 0 0 20px rgba(0,0,0,0.2);
         }
+        .board-container {
+            display: flex;
+            flex-direction: column;
+        }
         #board {
             width: 600px;
+            margin-bottom: 20px;
         }
         .side-panel {
             display: flex;
             flex-direction: column;
         }
-        #status, #game-result, #captured-pieces, #move-explanation {
+        h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #333;
+            border-bottom: 2px solid #b58863;
+            padding-bottom: 5px;
+        }
+        #status, #game-result, #game-duration {
             margin-bottom: 15px;
             font-size: 16px;
         }
-        #move-history, #move-explanation {
+        #move-history, #move-explanation, #game-summary {
             flex-grow: 1;
             overflow-y: auto;
             border: 1px solid #ccc;
             padding: 15px;
-            height: 200px;
+            height: 150px;
             background-color: #fff;
             border-radius: 5px;
+            margin-bottom: 15px;
         }
         .move-item {
             margin-bottom: 8px;
@@ -76,31 +89,46 @@
         #ai-move { background-color: #2196F3; }
         #reset-game { background-color: #ff9800; }
         #export-pgn { background-color: #9c27b0; }
+        .captured-pieces {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 15px;
+        }
+
         .captured-row {
             display: flex;
             flex-wrap: wrap;
-            margin-bottom: 8px;
+            max-width: 600px;
+            margin-bottom: 5px;
         }
+
         .captured-piece {
             font-size: 24px;
             margin-right: 8px;
+            line-height: 1;
         }
     </style>
 </head>
 <body>
     <div class="game-container">
         <div class="board-container">
+            <h2>Black's Captured Pieces</h2>
+            <div id="black-captured" class="captured-pieces"></div>
             <div id="board"></div>
+            <h2>White's Captured Pieces</h2>
+            <div id="white-captured" class="captured-pieces"></div>
+            <h2>Game Status</h2>
             <div id="status"></div>
             <div id="game-result"></div>
-            <div id="captured-pieces">
-                <div>White captured: <div id="white-captured" class="captured-row"></div></div>
-                <div>Black captured: <div id="black-captured" class="captured-row"></div></div>
-            </div>
+            <div id="game-duration">Game Duration: 00:00</div>
         </div>
         <div class="side-panel">
+            <h2>Move History</h2>
             <div id="move-history"></div>
+            <h2>Move Explanation</h2>
             <div id="move-explanation"></div>
+            <h2>Game Summary</h2>
+            <div id="game-summary"></div>
             <button id="start-ai-game">Start AI vs AI Game</button>
             <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
             <button id="ai-move">AI Move</button>
@@ -115,6 +143,9 @@
         let game = new Chess();
         let aiInterval = null;
         let capturedPieces = { w: [], b: [] };
+
+        let gameStartTime = null;
+        let gameDurationInterval = null;
 
         function onDragStart(source, piece, position, orientation) {
             if (game.game_over()) return false;
@@ -165,10 +196,10 @@
         }
 
         function updateCapturedPieces(move) {
-            const capturedPiece = game.get(move.to);
+            const capturedPiece = game.history({ verbose: true }).slice(-1)[0].captured;
             if (capturedPiece) {
-                const color = capturedPiece.color === 'w' ? 'b' : 'w';
-                capturedPieces[color].push(getPieceSymbol(capturedPiece.type));
+                const color = game.turn() === 'w' ? 'b' : 'w';  // The color of the player who made the capture
+                capturedPieces[color].push(getPieceSymbol(capturedPiece));
                 updateCapturedPiecesDisplay(color);
             }
         }
@@ -189,14 +220,17 @@
         }
 
         function getPieceSymbol(piece) {
-            const symbols = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' };
-            return symbols[piece.toLowerCase()] || '';
+        const symbols = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' };
+        return symbols[piece.toLowerCase()] || '';
         }
 
         function startAIGame() {
             $('#start-ai-game').hide();
             $('#stop-ai-game').show();
             $('#ai-move').prop('disabled', true);
+            gameStartTime = new Date();
+            updateGameDuration();
+            gameDurationInterval = setInterval(updateGameDuration, 1000);
             requestAIMove();
             aiInterval = setInterval(requestAIMove, 2000); // Make a move every 2 seconds
         }
@@ -206,6 +240,7 @@
             $('#stop-ai-game').hide();
             $('#ai-move').prop('disabled', false);
             clearInterval(aiInterval);
+            clearInterval(gameDurationInterval);
         }
 
         function requestAIMove() {
@@ -214,6 +249,7 @@
             } else {
                 stopAIGame();
                 showGameResult();
+                requestGameSummary();
             }
         }
 
@@ -238,13 +274,29 @@
             board.position('start');
             $('#move-history').empty();
             $('#move-explanation').empty();
+            $('#game-summary').empty();
             capturedPieces = { w: [], b: [] };
             updateCapturedPiecesDisplay('w');
             updateCapturedPiecesDisplay('b');
             $('#game-result').text('');
+            $('#game-duration').text('Game Duration: 00:00');
+            clearInterval(gameDurationInterval);
             updateStatus();
             stopAIGame();
             socket.emit('reset_game');
+        }
+
+        function updateGameDuration() {
+            if (gameStartTime) {
+                const duration = new Date() - gameStartTime;
+                const minutes = Math.floor(duration / 60000);
+                const seconds = Math.floor((duration % 60000) / 1000);
+                $('#game-duration').text(`Game Duration: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+            }
+        }
+
+        function requestGameSummary() {
+            socket.emit('get_game_summary');
         }
 
         const config = {
@@ -284,7 +336,12 @@
             if (data.game_over) {
                 stopAIGame();
                 showGameResult();
+                requestGameSummary();
             }
+        });
+
+        socket.on('game_summary', (data) => {
+            $('#game-summary').text(data.summary);
         });
 
         socket.on('error', (data) => {
