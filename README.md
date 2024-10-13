@@ -4,7 +4,22 @@
 
 This project implements an AI-powered chess game using multiple agents, natural language processing, and machine learning techniques. The game allows two AI agents to play chess against each other, with moves determined by a combination of chess engine analysis and language model reasoning.
 
+## Features
+
+This project is a sophisticated chess application that leverages Generative AI techniques to create an intelligent chess-playing system. It combines advanced language models, retrieval-augmented generation (RAG), and a user-friendly web interface to provide a unique chess-playing experience.
+
+
 ## 2. Architecture and Key Components
+
+### Backend
+
+- **Framework**: Flask with Flask-SocketIO for real-time communication
+- **Chess Logic**: python-chess library for game state management and move validation
+- **AI Components**:
+  - **Language Model**: OpenAI's GPT-4 for move generation and explanation
+  - **Embeddings**: OpenAI's text embeddings for knowledge retrieval
+  - **Vector Store**: Chroma for efficient storage and retrieval of chess knowledge
+  - **RAG System**: LangChain's RetrievalQA for augmenting move decisions with relevant chess knowledge
 
 ### 2.1 Multi-Agent System
 - **Framework**: AutoGen
@@ -87,11 +102,23 @@ This project implements an AI-powered chess game using multiple agents, natural 
 - **Challenge**: Maintaining accurate game state across multiple agents and functions
 - **Solution**: Centralized game state management and the GameTracker class for event logging
 
-## 8. Future Enhancements
+## 9. How It Works
 
-1. Implement an ELO rating system for AI players
-2. Add support for human players to compete against AI
-4. Explore reinforcement learning techniques to improve AI play over time
+1. The application initializes the chess board and AI agents.
+2. For each move, the AI:
+   - Analyzes the current board state
+   - Retrieves relevant chess knowledge using the RAG system
+   - Generates a move and explanation using the language model
+   - Executes the move on the board
+3. The frontend receives move updates in real-time and updates the display accordingly.
+4. Move explanations and game progress are shown to the user.
+5. Upon game completion, a summary is generated and displayed.
+
+## 10. Future Enhancements
+
+- Implementation of human vs AI gameplay
+- Integration of reinforcement learning techniques for improved AI performance
+- Advanced game analysis and visualization features
 
 ## 9. Conclusion
 
