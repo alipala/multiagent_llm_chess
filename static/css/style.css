@@ -1,0 +1,95 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    max-width: 500px;
+    width: 100%;
+}
+
+#board {
+    width: 400px;
+    margin: 20px 0;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+#status {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 15px 0;
+    color: #333;
+}
+
+#move-history, #game-summary {
+    margin: 15px 0;
+    text-align: center;
+    max-width: 400px;
+    word-wrap: break-word;
+    color: #555;
+}
+
+button {
+    margin: 10px;
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+#start-ai-game {
+    background-color: #3498db;
+}
+
+#start-ai-game:hover {
+    background-color: #2980b9;
+}
+
+#stop-ai-game {
+    background-color: #e74c3c;
+}
+
+#stop-ai-game:hover {
+    background-color: #c0392b;
+}
+
+#reset-game {
+    background-color: #f39c12;
+}
+
+#reset-game:hover {
+    background-color: #d35400;
+}
+
+#get-summary {
+    background-color: #9b59b6;
+}
+
+#get-summary:hover {
+    background-color: #8e44ad;
+}
