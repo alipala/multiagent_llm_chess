@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chess Game</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <style>
+        #move-history {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+        }
+        .move-item {
+            margin-bottom: 5px;
+        }
+        .white-move {
+            color: #000;
+        }
+        .black-move {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div id="board"></div>
+        <div id="status"></div>
+        <button id="start-ai-game">Start AI vs AI Game</button>
+        <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
+        <button id="ai-move">AI Move</button>
+        <button id="reset-game">Reset Game</button>
+        <button id="export-pgn">Export PGN</button>
+        <div id="move-history"></div>
+        <div id="game-summary"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        let board = null;
+        let game = new Chess();
+        let aiInterval = null;
+
+        function onDragStart(source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+        }
+
+        function onDrop(source, target) {
+            const move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q' // Always promote to queen for simplicity
+            });
+
+            if (move === null) return 'snapback';
+
+            updateStatus();
+            socket.emit('make_move', { move: move.from + move.to });
+        }
+
+        function updateStatus() {
+            let status = '';
+            let moveColor = game.turn() === 'b' ? 'Black' : 'White';
+
+            if (game.in_checkmate()) {
+                status = `Game over, ${moveColor} is in checkmate.`;
+            } else if (game.in_draw()) {
+                status = 'Game over, drawn position';
+            } else {
+                status = `${moveColor} to move`;
+                if (game.in_check()) {
+                    status += `, ${moveColor} is in check`;
+                }
+            }
+
+            $('#status').text(status);
+        }
+
+        function updateMoveHistory(move, result) {
+            const moveHistory = document.getElementById('move-history');
+            const moveElement = document.createElement('div');
+            moveElement.className = `move-item ${game.turn() === 'w' ? 'black-move' : 'white-move'}`;
+            moveElement.textContent = `${game.turn() === 'w' ? 'Black' : 'White'}: ${move} (${result})`;
+            moveHistory.appendChild(moveElement);
+            moveHistory.scrollTop = moveHistory.scrollHeight;
+        }
+
+        function startAIGame() {
+            $('#start-ai-game').hide();
+            $('#stop-ai-game').show();
+            $('#ai-move').prop('disabled', true);
+            requestAIMove();
+            aiInterval = setInterval(requestAIMove, 2000); // Make a move every 2 seconds
+        }
+
+        function stopAIGame() {
+            $('#start-ai-game').show();
+            $('#stop-ai-game').hide();
+            $('#ai-move').prop('disabled', false);
+            clearInterval(aiInterval);
+        }
+
+        function requestAIMove() {
+            if (!game.game_over()) {
+                socket.emit('request_ai_move');
+            } else {
+                stopAIGame();
+            }
+        }
+
+        function resetGame() {
+            game.reset();
+            board.position('start');
+            $('#move-history').empty();
+            updateStatus();
+            stopAIGame();
+            socket.emit('reset_game');
+        }
+
+        const config = {
+            draggable: true,
+            position: 'start',
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png'
+        };
+        board = Chessboard('board', config);
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('game_state', (data) => {
+            game.load(data.fen);
+            board.position(data.fen);
+            updateStatus();
+        });
+
+        socket.on('move_made', (data) => {
+            const move = game.move({
+                from: data.move.slice(0, 2),
+                to: data.move.slice(2, 4),
+                promotion: 'q' // Always promote to queen for simplicity
+            });
+
+            if (move) {
+                board.position(game.fen(), true); // The 'true' parameter enables animation
+                updateStatus();
+                updateMoveHistory(data.move, data.result);
+            }
+
+            if (data.game_over) {
+                alert('Game Over! ' + data.result);
+                stopAIGame();
+            }
+        });
+
+        socket.on('error', (data) => {
+            console.error('Error:', data.message);
+            alert('Error: ' + data.message);
+        });
+
+        socket.on('pgn_data', (data) => {
+            const blob = new Blob([data.pgn], {type: 'text/plain'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'chess_game.pgn';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+
+        $('#start-ai-game').click(startAIGame);
+        $('#stop-ai-game').click(stopAIGame);
+        $('#ai-move').click(requestAIMove);
+        $('#reset-game').click(resetGame)
+        $('#export-pgn').click(() => {
+            socket.emit('get_pgn');
+        });
+
+        updateStatus();
+    </script>
+</body>
+</html>
