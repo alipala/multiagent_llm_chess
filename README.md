@@ -91,9 +91,7 @@ This project implements an AI-powered chess game using multiple agents, natural 
 
 1. Implement an ELO rating system for AI players
 2. Add support for human players to compete against AI
-3. Develop a web interface for game visualization and interaction
-4. Implement more advanced chess opening databases
-5. Explore reinforcement learning techniques to improve AI play over time
+4. Explore reinforcement learning techniques to improve AI play over time
 
 ## 9. Conclusion
 
