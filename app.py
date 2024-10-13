@@ -19,14 +19,16 @@ from flask_socketio import SocketIO, emit
 import logging
 import warnings
 from typing import List, Tuple 
+import sys
 
 # Suppress specific Autogen warnings
 warnings.filterwarnings("ignore", message="Function .* is being overridden", category=UserWarning)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+logger = logging.getLogger(__name__)
 # Suppress specific loggers
 logging.getLogger("chromadb").setLevel(logging.ERROR)
 logging.getLogger("autogen").setLevel(logging.ERROR)
@@ -464,4 +466,5 @@ def handle_get_pgn():
 
 if __name__ == '__main__':
     logger.info("Starting the Chess AI application")
-    socketio.run(app, debug=False, host='0.0.0.0', port=5001)
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port)
