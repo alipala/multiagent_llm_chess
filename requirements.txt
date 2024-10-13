@@ -18,11 +18,9 @@ langchain-community>=0.0.10
 langchain-openai>=0.0.2
 chromadb>=0.5.12
 dask[complete]
-python-chess
 pyautogen>=0.3.0
-python-dotenv
-chess>=1.10.0
 ipywidgets
 nest_asyncio
 flaml[automl]
-flask
+gunicorn
+eventlet
