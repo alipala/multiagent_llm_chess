@@ -18,6 +18,7 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 import logging
 import warnings
+from typing import List, Tuple 
 
 # Suppress specific Autogen warnings
 warnings.filterwarnings("ignore", message="Function .* is being overridden", category=UserWarning)
@@ -134,22 +135,25 @@ class GameTracker:
 game_tracker = GameTracker()
 
 # Game functions
-def get_best_move(board_fen: str, legal_moves: List[str]) -> str:
-    query = f"Given the current chess position (FEN: {board_fen}) and legal moves {legal_moves}, what's the best move? Respond with only the move in UCI format."
+def get_best_move(board_fen: str, legal_moves: List[str]) -> Tuple[str, str]:
+    query = f"""Given the current chess position (FEN: {board_fen}) and legal moves {legal_moves}, 
+    what's the best move? Respond with the move in UCI format followed by a brief explanation of why it's a good move. 
+    Format your response as: 'move: explanation'"""
     result = qa.run(query)
-    return result.strip()
+    move, explanation = result.split(': ', 1)
+    return move.strip(), explanation.strip()
 
 def get_legal_moves() -> str:
     return "Possible moves are: " + ",".join([move.uci() for move in board.legal_moves])
 
-def make_move(move: str) -> str:
+def make_move(move: str, explanation: str = "") -> Tuple[str, str, bool]:
     global made_move, board, move_count, game_over, game_tracker
     if game_over:
-        return "The game is already over."
+        return "The game is already over.", explanation, True
+
     try:
         chess_move = chess.Move.from_uci(move)
         if chess_move in board.legal_moves:
-            is_capture = board.is_capture(chess_move)
             game_tracker.add_move(board, chess_move)
             board.push(chess_move)
             made_move = True
@@ -163,25 +167,38 @@ def make_move(move: str) -> str:
                      f"{chess.SQUARE_NAMES[chess_move.from_square]} to "\
                      f"{chess.SQUARE_NAMES[chess_move.to_square]}."
 
-            if is_capture:
-                captured_piece_name = chess.piece_name(board.piece_type_at(chess_move.to_square))
+            if board.is_capture(chess_move):
+                captured_piece = board.piece_at(chess_move.to_square)
+                captured_piece_name = chess.piece_name(captured_piece.piece_type)
                 result += f" Captured {captured_piece_name}."
 
             if board.is_check():
                 result += " Check!"
 
-            if is_game_over():
-                result += " The game is now over."
-                game_over = True
+            game_over = is_game_over()
+            if game_over:
+                if board.is_checkmate():
+                    result += f" Checkmate! {'White' if board.turn == chess.BLACK else 'Black'} wins."
+                elif board.is_stalemate():
+                    result += " Stalemate! The game is a draw."
+                elif board.is_insufficient_material():
+                    result += " Draw due to insufficient material."
+                elif board.is_seventyfive_moves():
+                    result += " Draw due to seventy-five moves rule."
+                elif board.is_fivefold_repetition():
+                    result += " Draw due to fivefold repetition."
+                else:
+                    result += " The game is over."
 
             logger.info(f"Move made: {result}")
-            return result
+            logger.info(f"Explanation: {explanation}")
+            return result, explanation, game_over
         else:
             logger.warning(f"Illegal move attempted: {move}")
-            return f"Illegal move: {move}. Legal moves are: {get_legal_moves()}"
+            return f"Illegal move: {move}. Legal moves are: {get_legal_moves()}", explanation, game_over
     except ValueError:
         logger.error(f"Invalid move format: {move}")
-        return f"Invalid move format: {move}. Please use UCI format (e.g., 'e2e4', 'g1f3')."
+        return f"Invalid move format: {move}. Please use UCI format (e.g., 'e2e4', 'g1f3').", explanation, game_over
 
 def is_game_over() -> bool:
     global game_over
@@ -335,15 +352,16 @@ def handle_make_move(data):
 @socketio.on('request_ai_move')
 def handle_ai_move():
     logger.info("AI move requested")
-    best_move = get_best_move(board.fen(), [m.uci() for m in board.legal_moves])
+    best_move, explanation = get_best_move(board.fen(), [m.uci() for m in board.legal_moves])
     logger.info(f"AI selected move: {best_move}")
-    result = make_move(best_move)
+    result, explanation, game_over = make_move(best_move, explanation)
     emit('move_made', {
         'move': best_move,
         'result': result,
+        'explanation': explanation,
         'fen': board.fen(),
         'legal_moves': [m.uci() for m in board.legal_moves],
-        'game_over': is_game_over()
+        'game_over': game_over
     })
 
 @socketio.on('reset_game')

@@ -15,38 +15,41 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
+            background: linear-gradient(135deg, #f0d9b5 0%, #b58863 100%);
         }
         .game-container {
             display: grid;
-            grid-template-columns: auto 300px;
+            grid-template-columns: auto 400px;
             grid-gap: 20px;
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
         }
         #board {
-            width: 400px;
+            width: 600px;
         }
         .side-panel {
             display: flex;
             flex-direction: column;
         }
-        #status, #captured-pieces {
-            margin-bottom: 10px;
+        #status, #game-result, #captured-pieces, #move-explanation {
+            margin-bottom: 15px;
+            font-size: 16px;
         }
-        #move-history {
+        #move-history, #move-explanation {
             flex-grow: 1;
             overflow-y: auto;
             border: 1px solid #ccc;
-            padding: 10px;
-            height: 300px;
+            padding: 15px;
+            height: 200px;
+            background-color: #fff;
+            border-radius: 5px;
         }
         .move-item {
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
         .white-move {
             color: #000;
@@ -55,17 +58,32 @@
             color: #666;
         }
         button {
-            margin: 5px 0;
-            padding: 10px;
-            font-size: 14px;
+            margin: 8px 0;
+            padding: 12px;
+            font-size: 16px;
             cursor: pointer;
-            background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
+            transition: all 0.3s ease;
         }
         button:hover {
-            background-color: #45a049;
+            opacity: 0.8;
+            transform: translateY(-2px);
+        }
+        #start-ai-game { background-color: #4CAF50; }
+        #stop-ai-game { background-color: #f44336; }
+        #ai-move { background-color: #2196F3; }
+        #reset-game { background-color: #ff9800; }
+        #export-pgn { background-color: #9c27b0; }
+        .captured-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .captured-piece {
+            font-size: 24px;
+            margin-right: 8px;
         }
     </style>
 </head>
@@ -74,13 +92,15 @@
         <div class="board-container">
             <div id="board"></div>
             <div id="status"></div>
+            <div id="game-result"></div>
             <div id="captured-pieces">
-                <div>White captured: <span id="white-captured"></span></div>
-                <div>Black captured: <span id="black-captured"></span></div>
+                <div>White captured: <div id="white-captured" class="captured-row"></div></div>
+                <div>Black captured: <div id="black-captured" class="captured-row"></div></div>
             </div>
         </div>
         <div class="side-panel">
             <div id="move-history"></div>
+            <div id="move-explanation"></div>
             <button id="start-ai-game">Start AI vs AI Game</button>
             <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
             <button id="ai-move">AI Move</button>
@@ -94,7 +114,7 @@
         let board = null;
         let game = new Chess();
         let aiInterval = null;
-        let capturedPieces = { w: '', b: '' };
+        let capturedPieces = { w: [], b: [] };
 
         function onDragStart(source, piece, position, orientation) {
             if (game.game_over()) return false;
@@ -148,14 +168,29 @@
             const capturedPiece = game.get(move.to);
             if (capturedPiece) {
                 const color = capturedPiece.color === 'w' ? 'b' : 'w';
-                capturedPieces[color] += getPieceSymbol(capturedPiece.type);
-                $(`#${color === 'w' ? 'white' : 'black'}-captured`).text(capturedPieces[color]);
+                capturedPieces[color].push(getPieceSymbol(capturedPiece.type));
+                updateCapturedPiecesDisplay(color);
             }
+        }
+
+        function updateCapturedPiecesDisplay(color) {
+            const container = $(`#${color === 'w' ? 'white' : 'black'}-captured`);
+            container.empty();
+            let currentRow = $('<div class="captured-row"></div>');
+            container.append(currentRow);
+
+            capturedPieces[color].forEach((piece, index) => {
+                if (index > 0 && index % 20 === 0) {
+                    currentRow = $('<div class="captured-row"></div>');
+                    container.append(currentRow);
+                }
+                currentRow.append(`<span class="captured-piece">${piece}</span>`);
+            });
         }
 
         function getPieceSymbol(piece) {
             const symbols = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' };
-            return symbols[piece] || '';
+            return symbols[piece.toLowerCase()] || '';
         }
 
         function startAIGame() {
@@ -178,16 +213,35 @@
                 socket.emit('request_ai_move');
             } else {
                 stopAIGame();
+                showGameResult();
             }
+        }
+
+        function showGameResult() {
+            let result = '';
+            if (game.in_checkmate()) {
+                result = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} wins.`;
+            } else if (game.in_stalemate()) {
+                result = 'Stalemate! The game is a draw.';
+            } else if (game.in_threefold_repetition()) {
+                result = 'Draw by threefold repetition.';
+            } else if (game.insufficient_material()) {
+                result = 'Draw due to insufficient material.';
+            } else if (game.in_draw()) {
+                result = 'The game is a draw.';
+            }
+            $('#game-result').text(result);
         }
 
         function resetGame() {
             game.reset();
             board.position('start');
             $('#move-history').empty();
-            capturedPieces = { w: '', b: '' };
-            $('#white-captured').text('');
-            $('#black-captured').text('');
+            $('#move-explanation').empty();
+            capturedPieces = { w: [], b: [] };
+            updateCapturedPiecesDisplay('w');
+            updateCapturedPiecesDisplay('b');
+            $('#game-result').text('');
             updateStatus();
             stopAIGame();
             socket.emit('reset_game');
@@ -224,11 +278,12 @@
                 updateStatus();
                 updateMoveHistory(data.move, data.result);
                 updateCapturedPieces(move);
+                $('#move-explanation').text(data.explanation);
             }
 
             if (data.game_over) {
-                alert('Game Over! ' + data.result);
                 stopAIGame();
+                showGameResult();
             }
         });
 
