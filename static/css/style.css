@@ -3,93 +3,270 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
     margin: 0;
-    background-color: #f0f0f0;
+    background: linear-gradient(135deg, #f0d9b5 0%, #b58863 100%);
 }
 
 .game-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background-color: white;
+    display: grid;
+    grid-template-columns: auto 400px;
+    grid-gap: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
     padding: 30px;
     border-radius: 15px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.1);
-    max-width: 500px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+}
+
+.board-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.board-eval-container {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin: 20px 0;
+}
+
+.evaluation-container {
+    position: relative;
+    display: flex;
+    height: 600px;
+    width: 50px;
+    margin-right: 10px;
+    background: #262421;
+    color: #fff;
+    border: 1px solid #666; 
+    overflow: hidden; 
+}
+
+.eval-bar {
+    position: absolute;
+    bottom: 0;
     width: 100%;
+    height: 50%;
+    background-color: #ffffff; /* White for positive evaluation */
+    transition: height 0.3s ease;
+}
+
+.eval-wrapper {
+    position: relative;
+    width: 24px;
+    height: 100%;
+    background: #000000; /* Black background */
+}
+
+.eval-bar-wrapper {
+    position: relative;
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #404040;
+    overflow: hidden;
+}
+
+.eval-bar-fill {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Important for containing colors */
+}
+
+.eval-score-abbreviated,
+.eval-score-full {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    padding: 2px 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 2;
+}
+
+.eval-score-abbreviated {
+    display: none; /* Show only on hover */
+}
+
+.eval-color {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.3s ease;
+}
+
+.eval-color.white {
+    background: #fff;
+    height: 100%;
+    bottom: 0;
+    transform: translate3d(0, 100%, 0);
+}
+
+.eval-color.black {
+    background: #000;
+    height: 100%;
+    top: 0;
+}
+
+.eval-color.draw {
+    background: #808080;
+    height: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.rank-numbers {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: 20px;
+    color: #808080;
+    font-size: 12px;
+    text-align: center;
+}
+
+.eval-value {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    color: #fff;
+    background: #262421;
+    padding: 2px 0;
+    z-index: 2;
+}
+
+.rank-numbers {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: 16px;
+    height: 100%;
+    font-size: 12px;
+    color: #999;
+    padding: 4px 0;
+}
+
+.rank-numbers div {
+    text-align: center;
+    height: 12.5%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #board {
-    width: 400px;
-    margin: 20px 0;
+    width: 600px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
-#status {
-    font-size: 18px;
-    font-weight: bold;
-    margin: 15px 0;
-    color: #333;
+.side-panel {
+    display: flex;
+    flex-direction: column;
 }
 
-#move-history, #game-summary {
-    margin: 15px 0;
-    text-align: center;
-    max-width: 400px;
-    word-wrap: break-word;
-    color: #555;
+h2 {
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: #333;
+    border-bottom: 2px solid #b58863;
+    padding-bottom: 5px;
+}
+
+#status, #game-result, #game-duration {
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.scrollable {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 15px;
+    height: 150px;
+    background-color: #fff;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+.captured-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.captured-row {
+    display: flex;
+    flex-wrap: wrap;
+    max-width: 600px;
+    margin-bottom: 5px;
+}
+
+.captured-piece {
+    font-size: 24px;
+    margin-right: 8px;
+    line-height: 1;
 }
 
 button {
-    margin: 10px;
-    padding: 12px 24px;
+    margin: 8px 0;
+    padding: 12px;
     font-size: 16px;
     cursor: pointer;
-    background-color: #4CAF50;
     color: white;
     border: none;
     border-radius: 5px;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 button:hover {
-    background-color: #45a049;
+    opacity: 0.8;
+    transform: translateY(-2px);
 }
 
 button:disabled {
-    background-color: #cccccc;
+    background-color: #ccc;
     cursor: not-allowed;
+    transform: none;
 }
 
-#start-ai-game {
-    background-color: #3498db;
+#start-ai-game { background-color: #4CAF50; }
+#stop-ai-game { background-color: #f44336; }
+#ai-move { background-color: #2196F3; }
+#reset-game { background-color: #ff9800; }
+#export-pgn { background-color: #9c27b0; }
+#toggle-eval { background-color: #607d8b; }
+
+.move-item {
+    margin-bottom: 8px;
 }
 
-#start-ai-game:hover {
-    background-color: #2980b9;
-}
+.white-move { color: #000; }
+.black-move { color: #666; }
 
-#stop-ai-game {
-    background-color: #e74c3c;
-}
-
-#stop-ai-game:hover {
-    background-color: #c0392b;
-}
-
-#reset-game {
-    background-color: #f39c12;
-}
-
-#reset-game:hover {
-    background-color: #d35400;
-}
-
-#get-summary {
-    background-color: #9b59b6;
-}
-
-#get-summary:hover {
-    background-color: #8e44ad;
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .game-container {
+        grid-template-columns: 1fr;
+    }
+    
+    #board {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+    
+    .side-panel {
+        width: 100%;
+    }
 }

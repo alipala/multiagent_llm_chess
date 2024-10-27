@@ -208,7 +208,7 @@ game_over = False
 
 # Game Tracker
 class GameTracker:
-    def __init__(self):
+    def __init__(self, evaluator):
         self.moves = []
         self.captures = []
         self.checks = []
@@ -216,47 +216,36 @@ class GameTracker:
         self.material_balance = []
         self.position_scores = []
         self.time_per_move = []
+        self.evaluator = evaluator 
         self.logger = logging.getLogger(__name__)
 
     def add_move(self, board: chess.Board, move: chess.Move, time_taken: float = 0.0):
-        """
-        Track a new move and its implications
-        """
-        try:
-            # Record basic move info
-            san_move = board.san(move)
-            self.moves.append(san_move)
-            self.time_per_move.append(time_taken)
-            
-            # Track captures
-            if board.is_capture(move):
-                captured_piece = board.piece_at(move.to_square)
-                self.captures.append((san_move, captured_piece))
-                self.logger.info(f"Capture recorded: {san_move} takes {captured_piece}")
-            
-            # Track checks
-            if board.is_check():
-                self.checks.append(san_move)
-                self.logger.info(f"Check recorded: {san_move}")
-            
-            # Track castling
-            if board.is_castling(move):
-                self.castlings.append(san_move)
-                self.logger.info(f"Castling recorded: {san_move}")
-            
-            # Calculate material balance
-            material = self._calculate_material_balance(board)
-            self.material_balance.append(material)
-            
-            # Calculate position score
-            score = self._evaluate_position(board)
-            self.position_scores.append(score)
-            
-            self.logger.info(f"Move {san_move} fully processed and tracked")
-            
-        except Exception as e:
-            self.logger.error(f"Error tracking move: {str(e)}")
-            raise
+            try:
+                # Regular move tracking
+                san_move = board.san(move)
+                self.moves.append(san_move)
+                self.time_per_move.append(time_taken)
+                
+                # Track position evaluation using the evaluator
+                evaluation = self.evaluator.evaluate_position(board)
+                self.position_scores.append(evaluation)
+                
+                # Track material balance
+                material = self.evaluator._evaluate_material(board)
+                self.material_balance.append(material)
+                
+                # Track special moves
+                if board.is_capture(move):
+                    captured_piece = board.piece_at(move.to_square)
+                    self.captures.append((san_move, captured_piece))
+                if board.is_check():
+                    self.checks.append(san_move)
+                if board.is_castling(move):
+                    self.castlings.append(san_move)
+                    
+            except Exception as e:
+                self.logger.error(f"Error tracking move: {str(e)}")
+                raise
 
     def _calculate_material_balance(self, board: chess.Board) -> int:
         """
@@ -273,15 +262,29 @@ class GameTracker:
                 
         return balance
 
-    def _evaluate_position(self, board: chess.Board) -> float:
-        """
-        Simple position evaluation
-        """
-        material = self._calculate_material_balance(board)
-        center_control = self._evaluate_center_control(board)
-        king_safety = self._evaluate_king_safety(board)
-        
-        return material + 0.1 * center_control + 0.2 * king_safety
+    def evaluate_position(self, board: chess.Board) -> float:
+        """Enhanced position evaluation"""
+        try:
+            material_score = self._evaluate_material(board)
+            positional_score = self._evaluate_positional_factors(board)
+            mobility_score = self._evaluate_mobility(board)
+            king_safety_score = self._evaluate_king_safety(board)
+            pawn_structure_score = self._evaluate_pawn_structure(board)
+            
+            # Weighted combination
+            total_score = (
+                0.60 * material_score +
+                0.15 * positional_score +
+                0.10 * mobility_score +
+                0.10 * king_safety_score +
+                0.05 * pawn_structure_score
+            ) / 100.0  # Convert centipawns to pawns
+            
+            return total_score
+            
+        except Exception as e:
+            logger.error(f"Error in evaluation: {str(e)}")
+            return 0.0
 
     def _evaluate_center_control(self, board: chess.Board) -> int:
         """
@@ -324,24 +327,28 @@ class GameTracker:
             'position_scores': self.position_scores
         }
 
-game_tracker = GameTracker()
+game_tracker = GameTracker(hybrid_brain)
 
 # Game functions
-def get_best_move(board_fen: str, legal_moves: List[str]) -> Tuple[str, str]:
-    """
-    Get the best move using the hybrid AI system
-    """
+def get_best_move(board_fen: str, legal_moves: List[str]) -> Tuple[str, str, float]:
+    """Get the best move using the hybrid AI system"""
     try:
         board = chess.Board(board_fen)
         move, explanation = hybrid_brain.get_move(board, legal_moves)
-        logger.info(f"Generated move: {move} with explanation")
-        return move, explanation
+        
+        # Make the move on a copy of the board
+        board_copy = board.copy()
+        board_copy.push(chess.Move.from_uci(move))
+        
+        # Get evaluation after the move
+        evaluation = hybrid_brain.evaluate_position(board_copy)
+        
+        logger.info(f"Move: {move}, Evaluation: {evaluation}")
+        return move, explanation, evaluation
+        
     except Exception as e:
         logger.error(f"Error in get_best_move: {str(e)}")
-        fallback_move = legal_moves[0] if legal_moves else None
-        if not fallback_move:
-            raise ValueError("No legal moves available")
-        return fallback_move, "Fallback move selected due to error"
+        return legal_moves[0], "Fallback move selected", 0.0
 
 def get_legal_moves() -> str:
     """Get all legal moves in current position"""
@@ -409,10 +416,34 @@ def make_move(move: str, explanation: str = "") -> Tuple[str, str, bool]:
         return f"Invalid move format: {move}. Please use UCI format (e.g., 'e2e4', 'g1f3').", explanation, game_over
 
 def is_game_over() -> bool:
-    """Check if the game is over"""
+    """Enhanced game over check"""
     global game_over
-    game_over = game_over or board.is_game_over() or move_count >= 100  # 50 moves per player
-    return game_over
+    
+    if board.is_checkmate():
+        game_over = True
+        return True
+        
+    if board.is_stalemate():
+        game_over = True
+        return True
+        
+    if board.is_insufficient_material():
+        game_over = True
+        return True
+        
+    if board.is_fifty_moves():
+        game_over = True
+        return True
+        
+    if board.is_repetition(3):
+        game_over = True
+        return True
+        
+    if move_count >= 100:  # 50 moves per side
+        game_over = True
+        return True
+        
+    return False
 
 def check_made_move(msg: str) -> bool:
     """Check if a move was made and update game status"""
@@ -423,32 +454,50 @@ def check_made_move(msg: str) -> bool:
     return game_over
 
 def summarize_game(tracker: GameTracker, result: str, total_moves: int) -> str:
-    """
-    Generate a comprehensive game summary
-    """
+    """Enhanced game summary"""
     try:
+        # Get more detailed game information
+        opening_phase = tracker.moves[:10]
+        material_changes = tracker.material_balance
+        position_changes = tracker.position_scores
+        game_phase = _determine_game_phase(total_moves)
+        
         summary_prompt = f"""
-        Analyze this chess game:
-        Total moves: {total_moves}
-        Result: {result}
-        Opening moves: {', '.join(tracker.moves[:5])}
-        Key statistics:
-        - Captures: {len(tracker.captures)}
-        - Checks: {len(tracker.checks)}
-        - Castling moves: {', '.join(tracker.castlings)}
-        - Material balance trajectory: {tracker.material_balance}
-        - Position scores: {tracker.position_scores}
+        Analyze this chess game concisely:
+        Game Result: {result}
+        Total Moves: {total_moves}
+        Opening: {', '.join(opening_phase)}
+        Material Changes: {material_changes}
+        Position Scores: {position_changes}
+        Game Phase: {game_phase}
+        Captures: {len(tracker.captures)}
+        Checks: {len(tracker.checks)}
+        Castling: {len(tracker.castlings)}
 
-        Recent captures: {', '.join([f"{move} (captured {piece})" for move, piece in tracker.captures[-3:]])}
-        Recent checks: {', '.join(tracker.checks[-3:])}
+        Focus on:
+        1. Key turning points
+        2. Critical decisions
+        3. Final position analysis
+        4. Clear winning/losing factors
+        
+        Provide a brief, clear summary of how the game progressed and concluded.
         """
-
+        
         summary = qa.run(summary_prompt)
         logger.info("Game summary generated successfully")
         return summary
+        
     except Exception as e:
         logger.error(f"Error generating game summary: {str(e)}")
         return f"Error generating summary: {str(e)}"
+
+def _determine_game_phase(total_moves: int) -> str:
+    if total_moves <= 10:
+        return "Opening"
+    elif total_moves <= 30:
+        return "Middlegame"
+    else:
+        return "Endgame"
     
 def export_game_to_pgn(board: chess.Board, white_name: str = "Player_White", black_name: str = "Player_Black") -> str:
     """
@@ -584,14 +633,17 @@ def handle_make_move(data):
 def handle_ai_move():
     try:
         logger.info("AI move requested")
-        best_move, explanation = get_best_move(board.fen(), [m.uci() for m in board.legal_moves])
-        logger.info(f"AI selected move: {best_move}")
+        best_move, explanation, evaluation = get_best_move(
+            board.fen(), 
+            [m.uci() for m in board.legal_moves]
+        )
         result, explanation, game_over = make_move(best_move, explanation)
         
         emit('move_made', {
             'move': best_move,
             'result': result,
             'explanation': explanation,
+            'evaluation': evaluation,  # Send evaluation with move
             'fen': board.fen(),
             'legal_moves': [m.uci() for m in board.legal_moves],
             'game_over': game_over
