@@ -24,3 +24,8 @@ nest_asyncio
 flaml[automl]
 gunicorn
 eventlet
+torch>=2.0.0
+transformers>=4.30.0
+tensorboard>=2.13.0
+scikit-learn>=1.0.2
+tqdm>=4.65.0
