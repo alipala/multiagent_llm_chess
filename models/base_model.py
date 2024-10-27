@@ -187,3 +187,80 @@ class HybridArchitecture:
         except Exception as e:
             logger.error(f"Error generating explanation: {str(e)}")
             return "Move selected based on position evaluation."
+        
+
+    def evaluate_position(self, board: chess.Board) -> float:
+
+        try:
+            # Material evaluation
+            material_score = self._evaluate_material(board)
+            
+            # Position evaluation
+            position_score = self._evaluate_positional_factors(board)
+            
+            # Combine scores with proper weighting
+            total_score = (
+                0.6 * material_score +  # Material is most important
+                0.4 * position_score    # Position factors
+            )
+            
+            # Normalize score to reasonable range (-10 to 10)
+            normalized_score = max(min(total_score / 100, 10), -10)
+            
+            return normalized_score
+            
+        except Exception as e:
+            logger.error(f"Error in position evaluation: {str(e)}")
+            return 0.0
+
+    def _evaluate_material(self, board: chess.Board) -> float:
+        """Calculate material balance"""
+        piece_values = {
+            chess.PAWN: 100,
+            chess.KNIGHT: 320,
+            chess.BISHOP: 330,
+            chess.ROOK: 500,
+            chess.QUEEN: 900,
+            chess.KING: 20000
+        }
+        
+        score = 0
+        for square in chess.SQUARES:
+            piece = board.piece_at(square)
+            if piece:
+                value = piece_values[piece.piece_type]
+                if piece.color == chess.WHITE:
+                    score += value
+                else:
+                    score -= value
+                    
+        return score
+
+    def _evaluate_positional_factors(self, board: chess.Board) -> float:
+        """Evaluate positional factors"""
+        score = 0
+        
+        # Center control
+        center_squares = [chess.E4, chess.D4, chess.E5, chess.D5]
+        for square in center_squares:
+            if board.piece_at(square):
+                piece = board.piece_at(square)
+                score += 10 if piece.color == chess.WHITE else -10
+                
+        # Piece mobility
+        for square in chess.SQUARES:
+            piece = board.piece_at(square)
+            if piece:
+                mobility = len(list(board.attacks(square)))
+                value = mobility * 2
+                score += value if piece.color == chess.WHITE else -value
+                
+        # King safety
+        for color in [chess.WHITE, chess.BLACK]:
+            king_square = board.king(color)
+            if king_square:
+                attackers = len(list(board.attackers(not color, king_square)))
+                safety_penalty = attackers * 10
+                score += -safety_penalty if color == chess.WHITE else safety_penalty
+                
+        return score

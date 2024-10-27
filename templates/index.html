@@ -5,372 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chess Game</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background: linear-gradient(135deg, #f0d9b5 0%, #b58863 100%);
-        }
-        .game-container {
-            display: grid;
-            grid-template-columns: auto 400px;
-            grid-gap: 20px;
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
-        }
-        .board-container {
-            display: flex;
-            flex-direction: column;
-        }
-        #board {
-            width: 600px;
-            margin-bottom: 20px;
-        }
-        .side-panel {
-            display: flex;
-            flex-direction: column;
-        }
-        h2 {
-            font-size: 20px;
-            margin-bottom: 10px;
-            color: #333;
-            border-bottom: 2px solid #b58863;
-            padding-bottom: 5px;
-        }
-        #status, #game-result, #game-duration {
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-        #move-history, #move-explanation, #game-summary {
-            flex-grow: 1;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 15px;
-            height: 150px;
-            background-color: #fff;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-        .move-item {
-            margin-bottom: 8px;
-        }
-        .white-move {
-            color: #000;
-        }
-        .black-move {
-            color: #666;
-        }
-        button {
-            margin: 8px 0;
-            padding: 12px;
-            font-size: 16px;
-            cursor: pointer;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            transition: all 0.3s ease;
-        }
-        button:hover {
-            opacity: 0.8;
-            transform: translateY(-2px);
-        }
-        #start-ai-game { background-color: #4CAF50; }
-        #stop-ai-game { background-color: #f44336; }
-        #ai-move { background-color: #2196F3; }
-        #reset-game { background-color: #ff9800; }
-        #export-pgn { background-color: #9c27b0; }
-        .captured-pieces {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 15px;
-        }
-
-        .captured-row {
-            display: flex;
-            flex-wrap: wrap;
-            max-width: 600px;
-            margin-bottom: 5px;
-        }
-
-        .captured-piece {
-            font-size: 24px;
-            margin-right: 8px;
-            line-height: 1;
-        }
-    </style>
 </head>
 <body>
     <div class="game-container">
         <div class="board-container">
             <h2>Black's Captured Pieces</h2>
             <div id="black-captured" class="captured-pieces"></div>
-            <div id="board"></div>
+            
+            <div class="board-eval-container">
+                <div class="evaluation-container">
+                    <div class="eval-bar-wrapper">
+                        <span class="eval-score-abbreviated">0</span>
+                        <span class="eval-score-full">0.0</span>
+                        <div class="eval-bar-fill">
+                            <div class="eval-color black"></div>
+                            <div class="eval-color draw"></div>
+                            <div class="eval-color white"></div>
+                        </div>
+                    </div>
+                    <div class="rank-numbers">
+                        <div>8</div>
+                        <div>7</div>
+                        <div>6</div>
+                        <div>5</div>
+                        <div>4</div>
+                        <div>3</div>
+                        <div>2</div>
+                        <div>1</div>
+                    </div>
+                </div>
+                <div id="board"></div>
+            </div>
+
             <h2>White's Captured Pieces</h2>
             <div id="white-captured" class="captured-pieces"></div>
-            <h2>Game Status</h2>
+            
             <div id="status"></div>
             <div id="game-result"></div>
             <div id="game-duration">Game Duration: 00:00</div>
         </div>
+        
         <div class="side-panel">
             <h2>Move History</h2>
-            <div id="move-history"></div>
+            <div id="move-history" class="scrollable"></div>
+            
             <h2>Move Explanation</h2>
-            <div id="move-explanation"></div>
+            <div id="move-explanation" class="scrollable"></div>
+            
             <h2>Game Summary</h2>
-            <div id="game-summary"></div>
+            <div id="game-summary" class="scrollable"></div>
+            
             <button id="start-ai-game">Start AI vs AI Game</button>
             <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
             <button id="ai-move">AI Move</button>
             <button id="reset-game">Reset Game</button>
             <button id="export-pgn">Export PGN</button>
+            <button id="toggle-eval" class="control-btn">Hide Evaluation</button>
         </div>
     </div>
-
-    <script>
-        const socket = io();
-        //const socket = io('https://multiagent-llm-chess.onrender.com');
-        let board = null;
-        let game = new Chess();
-        let aiInterval = null;
-        let capturedPieces = { w: [], b: [] };
-
-        let gameStartTime = null;
-        let gameDurationInterval = null;
-
-        function onDragStart(source, piece, position, orientation) {
-            if (game.game_over()) return false;
-            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-                return false;
-            }
-        }
-
-        function onDrop(source, target) {
-            const move = game.move({
-                from: source,
-                to: target,
-                promotion: 'q' // Always promote to queen for simplicity
-            });
-
-            if (move === null) return 'snapback';
-
-            updateStatus();
-            socket.emit('make_move', { move: move.from + move.to });
-        }
-
-        function updateStatus() {
-            let status = '';
-            let moveColor = game.turn() === 'b' ? 'Black' : 'White';
-
-            if (game.in_checkmate()) {
-                status = `Game over, ${moveColor} is in checkmate.`;
-            } else if (game.in_draw()) {
-                status = 'Game over, drawn position';
-            } else {
-                status = `${moveColor} to move`;
-                if (game.in_check()) {
-                    status += `, ${moveColor} is in check`;
-                }
-            }
-
-            $('#status').text(status);
-        }
-
-        function updateMoveHistory(move, result) {
-            const moveHistory = document.getElementById('move-history');
-            const moveElement = document.createElement('div');
-            moveElement.className = `move-item ${game.turn() === 'w' ? 'black-move' : 'white-move'}`;
-            moveElement.textContent = `${game.turn() === 'w' ? 'Black' : 'White'}: ${move} (${result})`;
-            moveHistory.appendChild(moveElement);
-            moveHistory.scrollTop = moveHistory.scrollHeight;
-        }
-
-        function updateCapturedPieces(move) {
-            const capturedPiece = game.history({ verbose: true }).slice(-1)[0].captured;
-            if (capturedPiece) {
-                const color = game.turn() === 'w' ? 'b' : 'w';  // The color of the player who made the capture
-                capturedPieces[color].push(getPieceSymbol(capturedPiece));
-                updateCapturedPiecesDisplay(color);
-            }
-        }
-
-        function updateCapturedPiecesDisplay(color) {
-            const container = $(`#${color === 'w' ? 'white' : 'black'}-captured`);
-            container.empty();
-            let currentRow = $('<div class="captured-row"></div>');
-            container.append(currentRow);
-
-            capturedPieces[color].forEach((piece, index) => {
-                if (index > 0 && index % 20 === 0) {
-                    currentRow = $('<div class="captured-row"></div>');
-                    container.append(currentRow);
-                }
-                currentRow.append(`<span class="captured-piece">${piece}</span>`);
-            });
-        }
-
-        function getPieceSymbol(piece) {
-        const symbols = { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' };
-        return symbols[piece.toLowerCase()] || '';
-        }
-
-        function startAIGame() {
-            $('#start-ai-game').hide();
-            $('#stop-ai-game').show();
-            $('#ai-move').prop('disabled', true);
-            gameStartTime = new Date();
-            updateGameDuration();
-            gameDurationInterval = setInterval(updateGameDuration, 1000);
-            requestAIMove();
-            aiInterval = setInterval(requestAIMove, 2000); // Make a move every 2 seconds
-        }
-
-        function stopAIGame() {
-            $('#start-ai-game').show();
-            $('#stop-ai-game').hide();
-            $('#ai-move').prop('disabled', false);
-            clearInterval(aiInterval);
-            clearInterval(gameDurationInterval);
-        }
-
-        function requestAIMove() {
-            if (!game.game_over()) {
-                socket.emit('request_ai_move');
-            } else {
-                stopAIGame();
-                showGameResult();
-                requestGameSummary();
-            }
-        }
-
-        function showGameResult() {
-            let result = '';
-            if (game.in_checkmate()) {
-                result = `Checkmate! ${game.turn() === 'w' ? 'Black' : 'White'} wins.`;
-            } else if (game.in_stalemate()) {
-                result = 'Stalemate! The game is a draw.';
-            } else if (game.in_threefold_repetition()) {
-                result = 'Draw by threefold repetition.';
-            } else if (game.insufficient_material()) {
-                result = 'Draw due to insufficient material.';
-            } else if (game.in_draw()) {
-                result = 'The game is a draw.';
-            }
-            $('#game-result').text(result);
-        }
-
-        function resetGame() {
-            game.reset();
-            board.position('start');
-            $('#move-history').empty();
-            $('#move-explanation').empty();
-            $('#game-summary').empty();
-            capturedPieces = { w: [], b: [] };
-            updateCapturedPiecesDisplay('w');
-            updateCapturedPiecesDisplay('b');
-            $('#game-result').text('');
-            $('#game-duration').text('Game Duration: 00:00');
-            clearInterval(gameDurationInterval);
-            updateStatus();
-            stopAIGame();
-            socket.emit('reset_game');
-        }
-
-        function updateGameDuration() {
-            if (gameStartTime) {
-                const duration = new Date() - gameStartTime;
-                const minutes = Math.floor(duration / 60000);
-                const seconds = Math.floor((duration % 60000) / 1000);
-                $('#game-duration').text(`Game Duration: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-            }
-        }
-
-        function requestGameSummary() {
-            socket.emit('get_game_summary');
-        }
-
-        const config = {
-            draggable: true,
-            position: 'start',
-            onDragStart: onDragStart,
-            onDrop: onDrop,
-            pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png'
-        };
-        board = Chessboard('board', config);
-
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
-
-        socket.on('game_state', (data) => {
-            game.load(data.fen);
-            board.position(data.fen);
-            updateStatus();
-        });
-
-        socket.on('move_made', (data) => {
-            const move = game.move({
-                from: data.move.slice(0, 2),
-                to: data.move.slice(2, 4),
-                promotion: 'q' // Always promote to queen for simplicity
-            });
-
-            if (move) {
-                board.position(game.fen());
-                updateStatus();
-                updateMoveHistory(data.move, data.result);
-                updateCapturedPieces(move);
-                $('#move-explanation').text(data.explanation);
-            }
-
-            if (data.game_over) {
-                stopAIGame();
-                showGameResult();
-                requestGameSummary();
-            }
-        });
-
-        socket.on('game_summary', (data) => {
-            $('#game-summary').text(data.summary);
-        });
-
-        socket.on('error', (data) => {
-            console.error('Error:', data.message);
-            alert('Error: ' + data.message);
-        });
-
-        socket.on('pgn_data', (data) => {
-            const blob = new Blob([data.pgn], {type: 'text/plain'});
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = 'chess_game.pgn';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-        });
-
-        $('#start-ai-game').click(startAIGame);
-        $('#stop-ai-game').click(stopAIGame);
-        $('#ai-move').click(requestAIMove);
-        $('#reset-game').click(resetGame);
-        $('#export-pgn').click(() => {
-            socket.emit('get_pgn');
-        });
-
-        updateStatus();
-    </script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html>
