@@ -23,6 +23,7 @@ import warnings
 from typing import List, Tuple 
 import sys
 from models.base_model import GPT4Model, ChessTransformer, HybridArchitecture
+import gc
 
 def log_startup_status():
     """Log detailed startup status"""
@@ -71,17 +72,32 @@ logging.getLogger("autogen").setLevel(logging.ERROR)
 # Initialize Flask and SocketIO
 app = Flask(__name__, static_url_path='/static')
 app.config['SERVER_NAME'] = None 
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# socketio = SocketIO(app, cors_allowed_origins="*") //for local run
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=True, engineio_logger=True)
+
 
 # Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-os.environ["OPENAI_API_KEY"] = openai.api_key
+# Local run
+# openai.api_key = os.getenv("OPENAI_API_KEY")
+# os.environ["OPENAI_API_KEY"] = openai.api_key
+# if not openai.api_key:
+#     raise ValueError("No OpenAI API key found. Please set the OPENAI_API_KEY environment variable.")
+# logger.info(f"API key loaded: {openai.api_key[:5]}...{openai.api_key[-5:]}")
 
-if not openai.api_key:
+# Get OpenAI API key
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
     raise ValueError("No OpenAI API key found. Please set the OPENAI_API_KEY environment variable.")
 
-logger.info(f"API key loaded: {openai.api_key[:5]}...{openai.api_key[-5:]}")
+# Set API key for OpenAI and environment
+openai.api_key = OPENAI_API_KEY
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+
+logger.info(f"API key loaded: {OPENAI_API_KEY[:5]}...{OPENAI_API_KEY[-5:]}")
+
 
 # Initialize AI models
 def initialize_models():
@@ -427,6 +443,10 @@ def summarize_game(tracker: GameTracker, result: str, total_moves: int) -> str:
         logger.error(f"Error generating game summary: {str(e)}")
         return f"Error generating summary: {str(e)}"
 
+def cleanup_memory():
+    gc.collect()
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
+    
 # WebSocket Event Handlers
 @socketio.on('connect')
 def handle_connect():
@@ -643,6 +663,11 @@ def handle_exception(e):
     """Global HTTP error handler"""
     logger.error(f"HTTP error: {str(e)}")
     return {'success': False, 'error': str(e)}, 500
+
+@app.after_request
+def after_request(response):
+    cleanup_memory()
+    return response
 
 # Application Startup
 if __name__ == '__main__':

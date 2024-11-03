@@ -1,0 +1,11 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "gunicorn --worker-class eventlet -w 1 --threads 4 app:app"
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1
+
+[deploy.resources]
+memory = 512
