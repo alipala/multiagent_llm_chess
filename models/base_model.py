@@ -48,7 +48,7 @@ class GPT4Model:
         return f"White controls {control['white']} center squares, Black controls {control['black']}"
 
 class ChessTransformer(nn.Module):
-    def __init__(self, encoder_layers: int = 2, attention_heads: int = 4, d_model: int = 256):
+    def __init__(self, encoder_layers: int = 6, attention_heads: int = 8, d_model: int = 512):
         super().__init__()
         self.piece_embedding = nn.Embedding(13, d_model)
         self.position_embedding = nn.Embedding(64, d_model)
@@ -59,7 +59,7 @@ class ChessTransformer(nn.Module):
             batch_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, encoder_layers)
-        self.move_predictor = nn.Linear(d_model, 1024)
+        self.move_predictor = nn.Linear(d_model, 4096)
         logger.info(f"Initialized ChessTransformer with {encoder_layers} layers")
         
     def forward(self, board_state: torch.Tensor) -> torch.Tensor:
