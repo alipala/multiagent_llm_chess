@@ -1,9 +1,11 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pip3 install -r requirements.txt"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "gunicorn --worker-class eventlet -w 1 --threads 4 app:app"
-healthcheckPath = "/"
-healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
+numReplicas = 1
+
+[deploy.resources]
+memory = 512

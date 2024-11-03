@@ -23,6 +23,7 @@ import warnings
 from typing import List, Tuple 
 import sys
 from models.base_model import GPT4Model, ChessTransformer, HybridArchitecture
+import gc
 
 def log_startup_status():
     """Log detailed startup status"""
@@ -442,6 +443,10 @@ def summarize_game(tracker: GameTracker, result: str, total_moves: int) -> str:
         logger.error(f"Error generating game summary: {str(e)}")
         return f"Error generating summary: {str(e)}"
 
+def cleanup_memory():
+    gc.collect()
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
+    
 # WebSocket Event Handlers
 @socketio.on('connect')
 def handle_connect():
@@ -658,6 +663,11 @@ def handle_exception(e):
     """Global HTTP error handler"""
     logger.error(f"HTTP error: {str(e)}")
     return {'success': False, 'error': str(e)}, 500
+
+@app.after_request
+def after_request(response):
+    cleanup_memory()
+    return response
 
 # Application Startup
 if __name__ == '__main__':
