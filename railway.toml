@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pip3 install -r requirements.txt"
+
+[deploy]
+startCommand = "gunicorn --worker-class eventlet -w 1 --threads 4 app:app"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
