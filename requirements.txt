@@ -32,3 +32,4 @@ tqdm>=4.65.0
 python-engineio==4.3.0
 requests==2.26.0
 Werkzeug==2.0.1
+python-chess[polyglot]>=1.10.0
