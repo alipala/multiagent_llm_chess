@@ -24,6 +24,8 @@ from typing import List, Tuple
 import sys
 from models.base_model import GPT4Model, ChessTransformer, HybridArchitecture
 import gc
+from pathlib import Path
+
 
 def log_startup_status():
     """Log detailed startup status"""
@@ -113,6 +115,12 @@ def initialize_models():
             d_model=768
         )
         
+        # Ensure books directory exists
+        books_path = Path("data/books")
+        if not books_path.exists():
+            logger.warning(f"Opening books directory not found at {books_path}")
+            books_path.mkdir(parents=True, exist_ok=True)
+            
         # Initialize hybrid architecture
         hybrid_brain = HybridArchitecture(
             llm=gpt4_model,
