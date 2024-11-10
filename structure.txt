@@ -1,0 +1,42 @@
+.
+├── Dockerfile
+├── OAI_CONFIG_LIST
+├── Procfile
+├── README.md
+├── app.py
+├── data
+│   └── books
+├── docs
+│   └── chess-ai-technical-doc.md
+├── models
+│   ├── __init__.py
+│   └── base_model.py
+├── railway.toml
+├── render.yaml
+├── requirements.txt
+├── static
+│   ├── css
+│   │   └── style.css
+│   ├── img
+│   │   └── chesspieces
+│   │       └── wikipedia
+│   │           ├── bB.png
+│   │           ├── bK.png
+│   │           ├── bK.svg
+│   │           ├── bN.png
+│   │           ├── bP.png
+│   │           ├── bQ.png
+│   │           ├── bR.png
+│   │           ├── wB.png
+│   │           ├── wK.png
+│   │           ├── wN.png
+│   │           ├── wP.png
+│   │           ├── wQ.png
+│   │           └── wR.png
+│   └── js
+│       └── main.js
+├── structure.txt
+└── templates
+    └── index.html
+
+12 directories, 28 files
