@@ -11,3 +11,20 @@ __pycache__/
 # Ignore system files
 .DS_Store
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+
+# Project specific
+chess_knowledge_db/
+*.pgn
+.env
+
+# IDE
+.vscode/
+.idea/

@@ -12,7 +12,10 @@ let evalVisible = true;
 let lastEvaluation = 0;
 
 function onDragStart(source, piece, position, orientation) {
+    // Don't allow moves if game is over
     if (game.game_over()) return false;
+
+    // Only allow moving pieces of the current turn's color
     if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
         (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
         return false;
@@ -20,16 +23,29 @@ function onDragStart(source, piece, position, orientation) {
 }
 
 function onDrop(source, target) {
-    const move = game.move({
-        from: source,
-        to: target,
-        promotion: 'q'
-    });
+    try {
+        // Check if the move is at least in the correct format
+        if (!source || !target || source.length !== 2 || target.length !== 2) {
+            return 'snapback';
+        }
 
-    if (move === null) return 'snapback';
+        const move = game.move({
+            from: source,
+            to: target,
+            promotion: 'q' // Always promote to queen for simplicity
+        });
 
-    updateStatus();
-    socket.emit('make_move', { move: move.from + move.to });
+        // If move is invalid, return 'snapback'
+        if (move === null) {
+            return 'snapback';
+        }
+
+        updateStatus();
+        socket.emit('make_move', { move: move.from + move.to });
+    } catch (e) {
+        console.error('Error making move:', e);
+        return 'snapback';
+    }
 }
 
 function updateStatus() {
@@ -265,9 +281,15 @@ socket.on('game_summary', (data) => {
     $('#game-summary').text(data.summary);
 });
 
+// Add better error handling for socket events
 socket.on('error', (data) => {
     console.error('Error:', data.message);
-    alert('Error: ' + data.message);
+    // Optional: Show error in UI
+    if (data.message) {
+        alert(data.message);
+    }
+    // Reset piece position
+    board.position(game.fen());
 });
 
 socket.on('analysis_result', (data) => {

@@ -21,6 +21,9 @@ from urllib.parse import urljoin
 import platform
 import psutil
 
+from agents.integration import ChessAgentSystem
+import asyncio
+
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -61,6 +64,9 @@ def initialize_models():
 
 # Initialize hybrid brain
 hybrid_brain = initialize_models()
+
+# Initialize agent system
+chess_agent_system = ChessAgentSystem()
 
 # Configure AutoGen
 config_list = config_list_from_json(
@@ -363,38 +369,62 @@ def handle_connect():
 
 @socketio.on('request_ai_move')
 def handle_ai_move():
-    global ai_thinking
+    global ai_thinking, board, game_over
     if game_over or ai_thinking:
         return
 
     try:
         ai_thinking = True
         logger.info(f"AI move requested. Current position: {board.fen()}")
-        logger.info(f"Move count: {move_count}, Legal moves: {len(list(board.legal_moves))}")
         
-        best_move, explanation, evaluation = get_best_move(
-            board.fen(), 
-            [m.uci() for m in board.legal_moves]
-        )
+        # Use our agent system to get the move
+        response = asyncio.run(chess_agent_system.handle_move_request(board.fen()))
         
-        logger.info(f"Selected move: {best_move}, Evaluation: {evaluation}")
-        result, explanation, is_game_over = make_move(best_move, explanation)
-        
-        emit('move_made', {
-            'move': best_move,
-            'result': result,
-            'explanation': explanation,
-            'evaluation': evaluation,
-            'fen': board.fen(),
-            'legal_moves': [m.uci() for m in board.legal_moves],
-            'game_over': is_game_over
-        })
-        
-        if is_game_over:
-            logger.info("Game over detected. Generating summary...")
-            summary = summarize_game(game_tracker, board.result(), move_count)
-            emit('game_summary', {'summary': summary})
-            logger.info("Game summary sent to client")
+        if response['status'] == 'success' and response['move']:
+            # Make the move
+            move = chess.Move.from_uci(response['move'])
+            
+            if move in board.legal_moves:
+                # Track game state before move
+                is_capture = board.is_capture(move)
+                captures_piece = board.piece_at(move.to_square) if is_capture else None
+                
+                # Make the move
+                board.push(move)
+                
+                # Generate result text
+                result = f"{'White' if board.turn == chess.BLACK else 'Black'}: {move.uci()}"
+                if is_capture:
+                    result += f" (Captured {captures_piece})"
+                
+                # Check game state
+                is_game_over = (
+                    board.is_checkmate() or 
+                    board.is_stalemate() or 
+                    board.is_insufficient_material() or 
+                    board.is_fifty_moves()
+                )
+                
+                # Emit move result
+                emit('move_made', {
+                    'move': move.uci(),
+                    'result': result,
+                    'explanation': response['explanation'],
+                    'evaluation': response['evaluation'],
+                    'fen': board.fen(),
+                    'legal_moves': [m.uci() for m in board.legal_moves],
+                    'game_over': is_game_over
+                })
+                
+                if is_game_over:
+                    game_over = True
+                    logger.info("Game over detected. Generating summary...")
+                    summary = summarize_game(game_tracker, board.result(), move_count)
+                    emit('game_summary', {'summary': summary})
+            else:
+                emit('error', {'message': f"Illegal move suggested: {move.uci()}"})
+        else:
+            emit('error', {'message': "Failed to generate move"})
             
     except Exception as e:
         logger.error(f"Error in AI move: {str(e)}")
@@ -404,12 +434,51 @@ def handle_ai_move():
 
 @socketio.on('make_move')
 def handle_make_move(data):
+    """Handle manual moves from the frontend"""
     try:
-        result, explanation, is_game_over = make_move(data['move'])
+        move = data['move']
+        logger.info(f"Manual move received: {move}")
+        
+        # Validate move format
+        if not move or len(move) < 4:
+            emit('error', {'message': f"Invalid move format: {move}"})
+            return
+            
+        try:
+            chess_move = chess.Move.from_uci(move)
+        except ValueError:
+            emit('error', {'message': f"Invalid UCI move format: {move}"})
+            return
+            
+        # Check if move is legal
+        if chess_move not in board.legal_moves:
+            emit('error', {'message': f"Illegal move: {move}"})
+            return
+            
+        # Make the move
+        board.push(chess_move)
+        
+        # Generate result text
+        result = f"{'White' if board.turn == chess.BLACK else 'Black'}: {move}"
+        if board.is_capture(chess_move):
+            result += " (Captured piece)"
+            
+        # Check game state
+        is_game_over = (
+            board.is_checkmate() or 
+            board.is_stalemate() or 
+            board.is_insufficient_material() or 
+            board.is_fifty_moves()
+        )
+        
+        # Update game state in agent system
+        asyncio.run(chess_agent_system.make_move(move))
+        
+        # Emit move result
         emit('move_made', {
-            'move': data['move'],
+            'move': move,
             'result': result,
-            'explanation': explanation,
+            'explanation': "Manual move executed",
             'fen': board.fen(),
             'legal_moves': [m.uci() for m in board.legal_moves],
             'game_over': is_game_over
@@ -420,7 +489,7 @@ def handle_make_move(data):
             emit('game_summary', {'summary': summary})
             
     except Exception as e:
-        logger.error(f"Error handling move: {str(e)}")
+        logger.error(f"Error handling manual move: {str(e)}")
         emit('error', {'message': str(e)})
 
 @socketio.on('reset_game')
@@ -432,6 +501,9 @@ def handle_reset_game():
         game_over = False
         ai_thinking = False
         game_tracker = GameTracker(evaluator=hybrid_brain)
+        
+        # Reset agent system state
+        asyncio.run(chess_agent_system.make_move('reset'))
         
         emit('game_state', {
             'fen': board.fen(),
