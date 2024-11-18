@@ -5,12 +5,11 @@
 ├── README.md
 ├── app.py
 ├── data
-│   └── books
-├── docs
-│   └── chess-ai-technical-doc.md
 ├── models
 │   ├── __init__.py
-│   └── base_model.py
+│   ├── base_model.py
+│   ├── engine.py
+│   └── engine2.py
 ├── railway.toml
 ├── render.yaml
 ├── requirements.txt
@@ -36,7 +35,8 @@
 │   └── js
 │       └── main.js
 ├── structure.txt
-└── templates
-    └── index.html
+├── templates
+│   └── index.html
+└── utils
 
-12 directories, 28 files
+11 directories, 29 files
