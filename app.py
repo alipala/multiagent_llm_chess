@@ -23,6 +23,7 @@ import warnings
 from typing import List, Tuple 
 import sys
 from models.base_model import GPT4Model, ChessTransformer, HybridArchitecture
+from typing import Any
 
 def log_startup_status():
     """Log detailed startup status"""
@@ -82,12 +83,19 @@ logger.info(f"API key loaded: {openai.api_key[:5]}...{openai.api_key[-5:]}")
 def initialize_models():
     try:
         logger.info("Initializing AI models...")
+        
+        # Initialize GPT4Model with correct ChatOpenAI integration
         gpt4_model = GPT4Model(temperature=0.7)
+        
+        # Initialize ChessTransformer
         chess_transformer = ChessTransformer()
+        
+        # Initialize hybrid architecture
         hybrid_brain = HybridArchitecture(
             llm=gpt4_model,
             chess_transformer=chess_transformer
         )
+        
         logger.info("AI models initialized successfully")
         return hybrid_brain
     except Exception as e:
@@ -333,6 +341,7 @@ game_tracker = GameTracker(hybrid_brain)
 def get_best_move(board_fen: str, legal_moves: List[str]) -> Tuple[str, str, float]:
     """Get the best move using the hybrid AI system"""
     try:
+        logger.info(f"{'White' if chess.Board(board_fen).turn else 'Black'}_Agent: Calculating best move")
         board = chess.Board(board_fen)
         move, explanation = hybrid_brain.get_move(board, legal_moves)
         
@@ -365,30 +374,38 @@ def make_move(move: str, explanation: str = "") -> Tuple[str, str, bool]:
         return "The game is already over.", explanation, True
 
     try:
+        logger.info(f"Board_Proxy: Processing move {move}")
         start_time = time.time()
         chess_move = chess.Move.from_uci(move)
         
         if chess_move in board.legal_moves:
+            # Get piece info before the move
+            moving_piece = board.piece_at(chess_move.from_square)
+            piece_symbol = moving_piece.symbol() if moving_piece else ''
+            piece_name = chess.piece_name(moving_piece.piece_type) if moving_piece else ''
+            
+            # Check for capture before making the move
+            is_capture = board.is_capture(chess_move)
+            captured_piece = board.piece_at(chess_move.to_square) if is_capture else None
+
             game_tracker.add_move(board, chess_move, time.time() - start_time)
             board.push(chess_move)
             made_move = True
             move_count += 1
 
-            piece = board.piece_at(chess_move.to_square)
-            piece_symbol = piece.symbol() if piece else ''
-            piece_name = chess.piece_name(piece.piece_type) if piece else ''
-
             result = f"Moved {piece_name} ({piece_symbol}) from "\
                      f"{chess.SQUARE_NAMES[chess_move.from_square]} to "\
-                     f"{chess.SQUARE_NAMES[chess_move.to_square]}."
+                     f"{chess.SQUARE_NAMES[chess_move.to_square]}"
 
-            if board.is_capture(chess_move):
-                captured_piece = board.piece_at(chess_move.to_square)
+            if is_capture:
                 captured_piece_name = chess.piece_name(captured_piece.piece_type)
-                result += f" Captured {captured_piece_name}."
+                result += f". Captured {captured_piece_name}"
 
             if board.is_check():
-                result += " Check!"
+                result += ". Check!"
+
+            if not result.endswith(('!', '.')):
+                result += "."
 
             game_over = is_game_over()
             if game_over:
@@ -415,6 +432,23 @@ def make_move(move: str, explanation: str = "") -> Tuple[str, str, bool]:
         logger.error(f"Invalid move format: {move}")
         return f"Invalid move format: {move}. Please use UCI format (e.g., 'e2e4', 'g1f3').", explanation, game_over
 
+def generate_commentary(board: Any, move: str, position_eval: float) -> str:
+    logger.info(f"Commentator_Agent: Generating commentary for move {move}")
+    try:
+        chess_move = chess.Move.from_uci(move)
+        piece = board.piece_at(chess_move.from_square)
+        prompt = f"""Comment on this chess position:
+        - {chess.piece_name(piece.piece_type)} to {chess.square_name(chess_move.to_square)}
+        - Capture: {board.is_capture(chess_move)}
+        - Check: {board.gives_check(chess_move)}
+        - Current evaluation: {position_eval:.2f}
+        - Move number: {board.fullmove_number}"""
+        
+        return commentator_agent.generate(prompt).response
+    except Exception as e:
+        logger.error(f"Commentary error: {str(e)}")
+        return "A strategic move in this position."
+
 def is_game_over() -> bool:
     """Enhanced game over check"""
     global game_over
@@ -439,7 +473,7 @@ def is_game_over() -> bool:
         game_over = True
         return True
         
-    if move_count >= 100:  # 50 moves per side
+    if move_count >= 20:  # 10 moves per side
         game_over = True
         return True
         
@@ -527,6 +561,7 @@ def export_game_to_pgn(board: chess.Board, white_name: str = "Player_White", bla
 player_system_message = """
 You are a chess player with deep knowledge of chess principles, powered by a hybrid AI system combining language understanding and chess-specific transformers.
 Before making a move, check if the game is over by calling is_game_over().
+Also, before each action, indicate your role (Player_White or Player_Black) in the logs.
 If the game is not over:
 1. Use the get_legal_moves function to get the list of legal moves.
 2. Use the get_best_move function to determine the best move using the hybrid AI system.
@@ -557,12 +592,25 @@ board_proxy = ConversableAgent(
     human_input_mode="NEVER",
 )
 
+commentator_agent = ConversableAgent(
+    name="Chess_Commentator",
+    system_message="""You are an enthusiastic chess commentator providing engaging, insightful commentary.
+    Focus on:
+    1. Tactical elements (captures, threats, combinations)
+    2. Strategic implications (pawn structure, piece placement)
+    3. Position evaluation and potential plans
+    4. Historical context of similar positions""",
+    llm_config=llm_config,
+    human_input_mode="NEVER"
+)
+
 # Function registration
 for caller in [player_white, player_black]:
     register_function(is_game_over, caller=caller, executor=board_proxy, name="is_game_over", description="Check if the game is over.")
     register_function(make_move, caller=caller, executor=board_proxy, name="make_move", description="Make a move on the chess board.")
     register_function(get_best_move, caller=caller, executor=board_proxy, name="get_best_move", description="Get the best move based on hybrid AI analysis.")
     register_function(get_legal_moves, caller=caller, executor=board_proxy, name="get_legal_moves", description="Get a list of legal moves in the current position.")
+    register_function(generate_commentary, caller=commentator_agent, executor=board_proxy, name="generate_commentary", description="Generate chess commentary")
 
 # Register nested chats
 player_white.register_nested_chats(
@@ -588,6 +636,12 @@ player_black.register_nested_chats(
         }
     ],
 )
+
+for player in [player_white, player_black]:
+    player.register_nested_chats(
+        trigger=commentator_agent, 
+        chat_queue=[{"sender": commentator_agent, "recipient": player}]
+    )
 
 # Flask routes
 @app.route('/')
@@ -664,7 +718,7 @@ def handle_reset_game():
         board = chess.Board()
         move_count = 0
         game_over = False
-        game_tracker = GameTracker()
+        game_tracker = GameTracker(evaluator=hybrid_brain)
         emit('game_state', {
             'fen': board.fen(),
             'legal_moves': [move.uci() for move in board.legal_moves]
