@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple, Optional
 import chess
 import numpy as np
 import random
+from langchain_openai import ChatOpenAI 
 
 
 # Configure logging
@@ -14,8 +15,21 @@ logger = logging.getLogger(__name__)
 class GPT4Model:
     def __init__(self, temperature: float = 0.7):
         self.temperature = temperature
+        self.chat = ChatOpenAI(
+            model="gpt-4o",
+            temperature=temperature
+        )
         logger.info(f"Initialized GPT4Model with temperature {temperature}")
-        
+
+    def generate_commentary(self, context: str) -> str:
+        try:
+            # Use predict method for generating commentary
+            response = self.chat.predict(context)
+            return response
+        except Exception as e:
+            logger.error(f"Error in GPT-4 commentary generation: {str(e)}")
+            return f"{context.split()[-1].capitalize()} move focusing on position control."
+
     def encode_position(self, board: chess.Board) -> str:
         return f"""
         Position FEN: {board.fen()}
@@ -160,29 +174,43 @@ class HybridArchitecture:
             return random.uniform(0, 1)  # Return random score on error
 
     def _generate_explanation(self, board: chess.Board, move: str) -> str:
+        """Generate chess commentary using HybridArchitecture context"""
         try:
             chess_move = chess.Move.from_uci(move)
+            
+            # Get board state and pieces
+            piece = board.piece_at(chess_move.from_square)
+            piece_name = chess.piece_name(piece.piece_type) if piece else "piece"
             from_square = chess.square_name(chess_move.from_square)
             to_square = chess.square_name(chess_move.to_square)
             
-            piece = board.piece_at(chess_move.from_square)
-            piece_name = chess.piece_name(piece.piece_type) if piece else "piece"
+            # Create a copy of the board and make the move for evaluation
+            board_copy = board.copy()
+            board_copy.push(chess_move)
+            position_eval = self.evaluate_position(board_copy)
             
-            explanation_parts = [f"Moving {piece_name} from {from_square} to {to_square}."]
+            # Additional context for the commentary
+            context = {
+                "move_number": board.fullmove_number,
+                "is_capture": board.is_capture(chess_move),
+                "captured_piece": chess.piece_name(board_copy.piece_at(chess_move.to_square).piece_type) if board.is_capture(chess_move) else None,
+                "gives_check": board.gives_check(chess_move),
+                "controls_center": to_square in ['e4', 'd4', 'e5', 'd5'],
+                "evaluation": position_eval,
+                "phase": "Opening" if board.fullmove_number <= 10 else "Middlegame" if board.fullmove_number <= 30 else "Endgame"
+            }
             
-            if board.is_capture(chess_move):
-                captured_piece = board.piece_at(chess_move.to_square)
-                if captured_piece:
-                    explanation_parts.append(
-                        f"Capturing {chess.piece_name(captured_piece.piece_type)}."
-                    )
+            prompt = f"""As a chess commentator, analyze this move in the {context['phase']}:
+            {piece_name.title()} moves from {from_square} to {to_square}
+            {"Captures " + context['captured_piece'] + "!" if context['is_capture'] else ""}
+            {"Delivers check!" if context['gives_check'] else ""}
+            {"Controls center!" if context['controls_center'] else ""}
+            Position evaluation: {context['evaluation']:.2f}
             
-            if to_square in ['e4', 'd4', 'e5', 'd5']:
-                explanation_parts.append("Controlling the center.")
-                
-            explanation_parts.append("Move chosen based on positional evaluation.")
+            Provide brief, exciting commentary focusing on tactical and strategic implications."""
             
-            return " ".join(explanation_parts)
+            commentary = self.llm.generate_commentary(prompt)
+            return commentary
             
         except Exception as e:
             logger.error(f"Error generating explanation: {str(e)}")
