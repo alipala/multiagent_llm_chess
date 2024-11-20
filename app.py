@@ -70,15 +70,13 @@ app.config['SERVER_NAME'] = None
 # It is for local run // socketio = SocketIO(app, cors_allowed_origins="*")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=True, engineio_logger=True)
 
-# Local run begins
-# # Load environment variables
-# load_dotenv()
-# openai.api_key = os.getenv("OPENAI_API_KEY")
-# os.environ["OPENAI_API_KEY"] = openai.api_key
-# Local run ends
 
-# Railway
+# Load environment variables
 load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+os.environ["OPENAI_API_KEY"] = openai.api_key
+
+
 
 if not openai.api_key:
     raise ValueError("No OpenAI API key found. Please set the OPENAI_API_KEY environment variable.")
