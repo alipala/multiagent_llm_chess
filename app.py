@@ -590,7 +590,7 @@ def is_game_over() -> bool:
         return True
         
     # Move limit (optional, can be adjusted or removed)
-    if move_count >= 40:  # Increased from 20 to 40
+    if move_count >= 80:  
         game_over = True
         return True
         

@@ -190,8 +190,9 @@ function showGameResult() {
     }
     $('#game-result').text(result);
     
-    // Show game summary section
-    document.querySelector('.game-summary-section').classList.add('visible');
+    // Show game summary section immediately and request the summary
+    $('.game-summary-section').show();
+    requestGameSummary();
 }
 
 function resetGame() {
@@ -283,6 +284,7 @@ socket.on('move_made', (data) => {
 socket.on('game_summary', (data) => {
     $('#game-summary').text(data.summary);
     // Ensure the game summary section is visible
+    $('.game-summary-section').show().addClass('visible');
     document.querySelector('.game-summary-section').classList.add('visible');
 });
 

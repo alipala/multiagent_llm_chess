@@ -323,7 +323,7 @@ h2 {
 }
 
 .game-summary-section.visible {
-    display: block;
+    display: block !important;
 }
 
 /* Buttons */
