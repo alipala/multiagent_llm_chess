@@ -107,12 +107,13 @@ body {
     transform: translateY(-50%);
 }
 
-/* Thinking Dots Animation */
 .thinking-dots {
     display: none;
     align-items: center;
-    margin-left: 10px;
     height: 24px;
+    padding: 0 5px;
+    background: rgba(255, 255, 255, 0.8); /* Optional: adds a subtle background */
+    border-radius: 12px; /* Optional: rounds the corners */
 }
 
 .thinking-dots.active {
@@ -162,17 +163,8 @@ body {
 .player-info {
     display: flex;
     align-items: center;
-    margin-right: 20px;
     position: relative;
-}
-
-.player-status {
-    display: flex;
-    align-items: center;
-    position: absolute;
-    right: -10px;
-    top: 50%;
-    transform: translateY(-50%);
+    margin-right: 20px;
 }
 
 .player-avatar {
@@ -181,7 +173,17 @@ body {
     border-radius: 50%;
     border: 3px solid #b58863;
     overflow: hidden;
-    margin-right: 15px;
+    flex-shrink: 0; /* Prevent avatar from shrinking */
+}
+
+.player-status {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    left: 100%; /* Position it right after the avatar */
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 10px; /* Add space between avatar and dots */
 }
 
 .player-avatar img {
@@ -369,5 +371,18 @@ button:disabled {
 .white-move { color: #000; }
 .black-move { color: #666; }
 
-/* Responsive Design */
-@media (max-width:
+@media (max-width: 768px) {
+    .player-status {
+        margin-left: 5px; /* Less space on mobile */
+    }
+    
+    .thinking-dots {
+        padding: 0 3px;
+    }
+    
+    .dot {
+        width: 6px;
+        height: 6px;
+        margin: 0 1px;
+    }
+}
