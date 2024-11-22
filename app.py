@@ -22,7 +22,7 @@ import logging
 import warnings
 from typing import List, Tuple 
 import sys
-from models.base_model import GPT4Model, ChessTransformer, HybridArchitecture
+from models.base_model import ChessEngine
 from typing import Any
 
 def log_startup_status():
@@ -56,13 +56,29 @@ def log_startup_status():
 warnings.filterwarnings("ignore", message="Function .* is being overridden", category=UserWarning)
 
 # Set up logging
-logging.basicConfig(stream=sys.stdout, level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+def setup_logging():
+    """Configure logging with better formatting"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s | %(levelname)s | %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    
+    # Suppress noisy loggers
+    noisy_loggers = [
+        'engineio.server',
+        'socketio.server',
+        'chromadb',
+        'httpx',
+        'autogen'
+    ]
+    
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
+# Setup logging early
+setup_logging()
 logger = logging.getLogger(__name__)
-# Suppress specific loggers
-logging.getLogger("chromadb").setLevel(logging.ERROR)
-logging.getLogger("autogen").setLevel(logging.ERROR)
 
 # Initialize Flask and SocketIO
 app = Flask(__name__, static_url_path='/static')
@@ -88,30 +104,21 @@ def initialize_models():
     try:
         logger.info("Initializing AI models...")
         
-        # Initialize GPT4Model with correct ChatOpenAI integration
-        gpt4_model = GPT4Model(temperature=0.7)
-        
-        # Initialize ChessTransformer
-        chess_transformer = ChessTransformer()
-        
-        # Initialize hybrid architecture
-        hybrid_brain = HybridArchitecture(
-            llm=gpt4_model,
-            chess_transformer=chess_transformer
-        )
-        
+        # Initialize Chess Engine with correct ChatOpenAI integration        
+        chess_engine = ChessEngine(temperature=0.7)
+    
         logger.info("AI models initialized successfully")
-        return hybrid_brain
+        return chess_engine
     except Exception as e:
         logger.error(f"Error initializing AI models: {str(e)}")
         raise
 
-# Initialize hybrid brain
+# Initialize engines
 try:
-    hybrid_brain = initialize_models()
-    logger.info("Hybrid brain initialized successfully")
+    chess_engine = initialize_models() 
+    logger.info("Chess engine initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize hybrid brain: {str(e)}")
+    logger.error(f"Failed to initialize chess engine: {str(e)}")
     raise
 
 config_list = config_list_from_json(
@@ -130,70 +137,98 @@ logger.info(f"Config list: {config_list}")
 
 # Chess knowledge base
 chess_knowledge = """
-# Opening Theory
-1. Basic Principles:
-   - Control the center
-   - Develop pieces early
-   - Castle for king safety
-   - Connect rooks
-   
-2. Common Openings:
-   - Ruy Lopez: 1.e4 e5 2.Nf3 Nc6 3.Bb5
-   - Sicilian Defense: 1.e4 c5
-   - Queen's Gambit: 1.d4 d5 2.c4
-   - King's Indian Defense: 1.d4 Nf6 2.c4 g6
+# Opening Principles
+1. Essential Development Rules:
+   - Don't move the same piece twice in the opening
+   - Develop knights before bishops
+   - Don't bring queen out too early
+   - Castle within the first 7-8 moves
+   - Control center with pawns (e4, d4, e5, d5)
+   - Only make pawn moves that aid development
+
+2. Common Opening Mistakes to Avoid:
+   - Moving edge pawns (a,h) too early
+   - Making too many pawn moves
+   - Moving queen prematurely
+   - Making pointless knight moves
+   - Weakening king's position
+
+3. Center Control Strategy:
+   - Occupy center with pawns first (e4/d4 or e5/d5)
+   - Support center pawns with minor pieces
+   - Don't exchange center pawns without clear benefit
+   - Maintain tension when advantageous
 
 # Middlegame Strategy
-1. Piece Activity:
-   - Knights on outposts
-   - Bishops on open diagonals
-   - Rooks on open files
-   - Queen behind development
+1. King Safety Priority:
+   - Complete castling before attacking
+   - Maintain pawn shield in front of castled king
+   - Watch for diagonal weaknesses
+   - Don't advance pawns in front of castled king without purpose
 
-2. Pawn Structure:
-   - Isolated pawns
-   - Doubled pawns
-   - Backward pawns
-   - Passed pawns
+2. Piece Coordination:
+   - Connect rooks after castling
+   - Place bishops on active diagonals
+   - Establish knights on strong outposts
+   - Create piece chains protecting each other
+   - Coordinate pieces before launching attacks
 
-# Endgame Principles
-1. Basic Checkmates:
-   - King and Queen vs King
-   - King and Rook vs King
-   - King and Two Bishops vs King
+3. Attack Prerequisites:
+   - Ensure king safety first
+   - Have more pieces in attacking zone
+   - Control key squares around enemy king
+   - Create weaknesses in enemy position
+   - Don't attack without proper preparation
 
-2. Pawn Endgames:
-   - Opposition
-   - Square rule
-   - Breakthrough
-   - Key squares
+# Position Evaluation
+1. Material Balance:
+   - Consider piece values (P=1, N=3, B=3, R=5, Q=9)
+   - Bishop pair is worth extra half-pawn
+   - Knights strong in closed positions
+   - Bishops strong in open positions
 
-# Tactical Patterns
-1. Common Motifs:
-   - Pin
-   - Fork
-   - Skewer
-   - Discovery
-   - Double attack
+2. Positional Factors:
+   - Pawn structure health
+   - Piece activity and coordination
+   - King safety assessment
+   - Control of key squares and files
+   - Development lead
+   - Space advantage
 
-2. Calculation:
-   - Forcing moves
-   - Candidate moves
-   - Move order
-   - Tempo
-
-# Strategic Concepts
-1. Position Assessment:
-   - Material balance
-   - King safety
-   - Pawn structure
-   - Piece activity
-
-2. Plan Formation:
-   - Weaknesses
-   - Piece placement
+3. Dynamic Elements:
+   - Piece mobility
+   - Attacking chances
+   - Tactical opportunities
    - Pawn breaks
-   - Attack preparation
+   - Piece coordination potential
+
+# Common Tactical Patterns
+1. Basic Tactics:
+   - Fork: One piece attacks two
+   - Pin: Piece can't move due to exposure
+   - Skewer: Similar to pin but higher value piece in front
+   - Discovery: Moving one piece reveals attack from another
+
+2. Tactical Motifs:
+   - Overloading: Piece defending too many squares
+   - Deflection: Forcing piece away from defense
+   - Clearance: Removing blocking piece
+   - Interference: Blocking defensive piece
+
+# Safety Checks Before Moving
+1. Pre-Move Checklist:
+   - Check all opponent's captures
+   - Look for tactical threats
+   - Consider opponent's best reply
+   - Evaluate resulting position
+   - Verify move aids overall plan
+
+2. Position Maintenance:
+   - Keep pieces protected
+   - Maintain pawn structure
+   - Watch diagonal weaknesses
+   - Control key squares
+   - Keep king safe
 """
 
 # Set up RAG system
@@ -232,12 +267,14 @@ class GameTracker:
         self.logger = logging.getLogger(__name__)
 
     def add_move(self, board: chess.Board, move: chess.Move, time_taken: float = 0.0):
+        """Track move after it has been made"""
+        try:
+            # Get move in UCI format
+            move_uci = move.uci()
+            self.moves.append(move_uci)
+            self.time_per_move.append(time_taken)
+            
             try:
-                # Regular move tracking
-                san_move = board.san(move)
-                self.moves.append(san_move)
-                self.time_per_move.append(time_taken)
-                
                 # Track position evaluation using the evaluator
                 evaluation = self.evaluator.evaluate_position(board)
                 self.position_scores.append(evaluation)
@@ -245,19 +282,27 @@ class GameTracker:
                 # Track material balance
                 material = self.evaluator._evaluate_material(board)
                 self.material_balance.append(material)
-                
-                # Track special moves
-                if board.is_capture(move):
-                    captured_piece = board.piece_at(move.to_square)
-                    self.captures.append((san_move, captured_piece))
-                if board.is_check():
-                    self.checks.append(san_move)
-                if board.is_castling(move):
-                    self.castlings.append(san_move)
-                    
             except Exception as e:
-                self.logger.error(f"Error tracking move: {str(e)}")
-                raise
+                self.logger.warning(f"Error in evaluation tracking: {str(e)}")
+                self.position_scores.append(0.0)
+                self.material_balance.append(0.0)
+            
+            # Track special moves
+            if board.is_capture(move):
+                captured_sq = move.to_square
+                captured_piece = board.piece_at(captured_sq)
+                if captured_piece:
+                    self.captures.append((move_uci, captured_piece))
+                    
+            if board.is_check():
+                self.checks.append(move_uci)
+                
+            if board.is_castling(move):
+                self.castlings.append(move_uci)
+                
+        except Exception as e:
+            self.logger.error(f"Error tracking move: {str(e)}")
+            raise
 
     def _calculate_material_balance(self, board: chess.Board) -> int:
         """
@@ -339,103 +384,180 @@ class GameTracker:
             'position_scores': self.position_scores
         }
 
-game_tracker = GameTracker(hybrid_brain)
+game_tracker = GameTracker(chess_engine)
 
 # Game functions
 def get_best_move(board_fen: str, legal_moves: List[str]) -> Tuple[str, str, float]:
-    """Get the best move using the hybrid AI system"""
+    """Get best move with single LLM call"""
     try:
-        logger.info(f"{'White' if chess.Board(board_fen).turn else 'Black'}_Agent: Calculating best move")
         board = chess.Board(board_fen)
-        move, explanation = hybrid_brain.get_move(board, legal_moves)
+        player = 'White' if board.turn else 'Black'
+        logger.info(f"🎮 {player} is thinking...")
         
-        # Make the move on a copy of the board
-        board_copy = board.copy()
-        board_copy.push(chess.Move.from_uci(move))
+        # Get move and explanation from chess engine
+        move, explanation = chess_engine.get_move(board, legal_moves)
         
-        # Get evaluation after the move
-        evaluation = hybrid_brain.evaluate_position(board_copy)
+        # Quick evaluation without API call
+        evaluation = chess_engine.evaluate_position(board)
         
-        logger.info(f"Move: {move}, Evaluation: {evaluation}")
+        logger.info(f"🎯 {player} plays {move}")
         return move, explanation, evaluation
         
     except Exception as e:
-        logger.error(f"Error in get_best_move: {str(e)}")
+        logger.error(f"⚠️ Error in move generation: {str(e)}")
+        # Return first legal move instead of falling back
         return legal_moves[0], "Fallback move selected", 0.0
+    
+def analyze_position(board: chess.Board) -> str:
+    """Analyze current position to create RAG query"""
+    position_details = []
+    
+    # Game phase
+    move_number = board.fullmove_number
+    if move_number <= 10:
+        position_details.append("opening phase")
+    elif move_number <= 30:
+        position_details.append("middlegame phase")
+    else:
+        position_details.append("endgame phase")
+    
+    # Material count
+    material = {
+        'P': len(board.pieces(chess.PAWN, chess.WHITE)),
+        'p': len(board.pieces(chess.PAWN, chess.BLACK)),
+        'N': len(board.pieces(chess.KNIGHT, chess.WHITE)),
+        'n': len(board.pieces(chess.KNIGHT, chess.BLACK)),
+        'B': len(board.pieces(chess.BISHOP, chess.WHITE)),
+        'b': len(board.pieces(chess.BISHOP, chess.BLACK)),
+        'R': len(board.pieces(chess.ROOK, chess.WHITE)),
+        'r': len(board.pieces(chess.ROOK, chess.BLACK)),
+        'Q': len(board.pieces(chess.QUEEN, chess.WHITE)),
+        'q': len(board.pieces(chess.QUEEN, chess.BLACK))
+    }
+    
+    # Add relevant position characteristics
+    if board.is_check():
+        position_details.append("king is in check")
+    if len(board.pieces(chess.QUEEN, chess.WHITE)) + len(board.pieces(chess.QUEEN, chess.BLACK)) == 0:
+        position_details.append("queens are exchanged")
+    if len(board.pieces(chess.PAWN, chess.WHITE)) + len(board.pieces(chess.PAWN, chess.BLACK)) < 8:
+        position_details.append("open pawn structure")
+        
+    return f"Position analysis: {', '.join(position_details)}. What strategic principles apply?"
 
 def get_legal_moves() -> str:
     """Get all legal moves in current position"""
     return "Possible moves are: " + ",".join([move.uci() for move in board.legal_moves])
 
 def make_move(move: str, explanation: str = "") -> Tuple[str, str, bool]:
-    """
-    Make a move on the board
-    Returns: (result_message, explanation, is_game_over)
-    """
+    """Make a move on the board and return result"""
     global made_move, board, move_count, game_over, game_tracker
     
     if game_over:
         return "The game is already over.", explanation, True
 
     try:
-        logger.info(f"Board_Proxy: Processing move {move}")
-        start_time = time.time()
-        chess_move = chess.Move.from_uci(move)
+        # Parse move from UCI format
+        from_square = chess.parse_square(move[0:2])
+        to_square = chess.parse_square(move[2:4])
+        promotion = chess.QUEEN if len(move) > 4 else None
+        chess_move = chess.Move(from_square, to_square, promotion=promotion)
         
-        if chess_move in board.legal_moves:
-            # Get piece info before the move
-            moving_piece = board.piece_at(chess_move.from_square)
-            piece_symbol = moving_piece.symbol() if moving_piece else ''
-            piece_name = chess.piece_name(moving_piece.piece_type) if moving_piece else ''
-            
-            # Check for capture before making the move
-            is_capture = board.is_capture(chess_move)
-            captured_piece = board.piece_at(chess_move.to_square) if is_capture else None
-
-            game_tracker.add_move(board, chess_move, time.time() - start_time)
-            board.push(chess_move)
-            made_move = True
-            move_count += 1
-
-            result = f"Moved {piece_name} ({piece_symbol}) from "\
-                     f"{chess.SQUARE_NAMES[chess_move.from_square]} to "\
-                     f"{chess.SQUARE_NAMES[chess_move.to_square]}"
-
-            if is_capture:
-                captured_piece_name = chess.piece_name(captured_piece.piece_type)
-                result += f". Captured {captured_piece_name}"
-
-            if board.is_check():
-                result += ". Check!"
-
-            if not result.endswith(('!', '.')):
-                result += "."
-
-            game_over = is_game_over()
-            if game_over:
-                if board.is_checkmate():
-                    result += f" Checkmate! {'White' if board.turn == chess.BLACK else 'Black'} wins."
-                elif board.is_stalemate():
-                    result += " Stalemate! The game is a draw."
-                elif board.is_insufficient_material():
-                    result += " Draw due to insufficient material."
-                elif board.is_seventyfive_moves():
-                    result += " Draw due to seventy-five moves rule."
-                elif board.is_fivefold_repetition():
-                    result += " Draw due to fivefold repetition."
-                else:
-                    result += " The game is over."
-
-            logger.info(f"Move made: {result}")
-            logger.info(f"Explanation: {explanation}")
-            return result, explanation, game_over
-        else:
-            logger.warning(f"Illegal move attempted: {move}")
+        if chess_move not in board.legal_moves:
+            logger.warning(f"⚠️ Illegal move attempted: {move}")
             return f"Illegal move: {move}. Legal moves are: {get_legal_moves()}", explanation, game_over
-    except ValueError:
-        logger.error(f"Invalid move format: {move}")
-        return f"Invalid move format: {move}. Please use UCI format (e.g., 'e2e4', 'g1f3').", explanation, game_over
 
+        # Get piece info before the move
+        moving_piece = board.piece_at(from_square)
+        piece_name = chess.piece_name(moving_piece.piece_type) if moving_piece else ''
+        from_square_name = chess.square_name(from_square)
+        to_square_name = chess.square_name(to_square)
+        
+        # Record special moves before making the move
+        is_capture = board.is_capture(chess_move)
+        captured_piece = board.piece_at(to_square) if is_capture else None
+        
+        # Track timing
+        start_time = time.time()
+        
+        # Make the move on the board
+        board.push(chess_move)
+        
+        # Update tracking after move is made
+        game_tracker.add_move(board, chess_move, time.time() - start_time)
+        
+        # Build result message
+        result = [f"Moved {piece_name} from {from_square_name} to {to_square_name}"]
+        if is_capture and captured_piece:
+            result.append(f"Captured {chess.piece_name(captured_piece.piece_type)}")
+        if board.is_check():
+            result.append("Check!")
+            
+        # Update game state
+        made_move = True
+        move_count += 1
+        game_over = is_game_over()
+        
+        # Finalize result message
+        result_str = ". ".join(result)
+        if game_over:
+            result_str += _get_game_over_message()
+            
+        logger.info(f"🎯 Move made: {result_str}")
+        if explanation:
+            logger.info(f"💭 Reasoning: {explanation}")
+            
+        return result_str, explanation, game_over
+        
+    except ValueError as e:
+        logger.error(f"⚠️ Invalid move format: {move}, Error: {str(e)}")
+        return f"Invalid move format: {move}. Please use UCI format (e.g., 'e2e4').", explanation, game_over
+
+
+def _execute_move(chess_move: chess.Move) -> str:
+    """Execute the move and generate description"""
+    # Get piece info
+    moving_piece = board.piece_at(chess_move.from_square)
+    piece_name = chess.piece_name(moving_piece.piece_type) if moving_piece else ''
+    piece_symbol = moving_piece.symbol() if moving_piece else ''
+    
+    # Get square names
+    from_square = chess.SQUARE_NAMES[chess_move.from_square]
+    to_square = chess.SQUARE_NAMES[chess_move.to_square]
+    
+    # Build result message
+    result = [f"Moved {piece_name} ({piece_symbol}) from {from_square} to {to_square}"]
+    
+    # Check for capture
+    if board.is_capture(chess_move):
+        captured_piece = board.piece_at(chess_move.to_square)
+        if captured_piece:
+            result.append(f"Captured {chess.piece_name(captured_piece.piece_type)}")
+    
+    # Make the move
+    board.push(chess_move)
+    
+    # Add check indication
+    if board.is_check():
+        result.append("Check!")
+        
+    return ". ".join(result) + ("" if result[-1].endswith("!") else ".")
+
+def _get_game_over_message() -> str:
+    """Generate game over message"""
+    if board.is_checkmate():
+        return f" Checkmate! {'White' if board.turn == chess.BLACK else 'Black'} wins."
+    elif board.is_stalemate():
+        return " Stalemate! The game is a draw."
+    elif board.is_insufficient_material():
+        return " Draw due to insufficient material."
+    elif board.is_seventyfive_moves():
+        return " Draw due to seventy-five moves rule."
+    elif board.is_fivefold_repetition():
+        return " Draw due to fivefold repetition."
+    else:
+        return " The game is over."
+        
 def generate_commentary(board: Any, move: str, position_eval: float) -> str:
     logger.info(f"Commentator_Agent: Generating commentary for move {move}")
     try:
@@ -457,31 +579,116 @@ def is_game_over() -> bool:
     """Enhanced game over check"""
     global game_over
     
-    if board.is_checkmate():
+    # Regular chess endings
+    if board.is_checkmate() or board.is_stalemate() or board.is_insufficient_material():
         game_over = True
         return True
         
-    if board.is_stalemate():
+    # Repetition draw
+    if board.is_repetition(3) or board.is_fifty_moves():
         game_over = True
         return True
         
-    if board.is_insufficient_material():
+    # Move limit (optional, can be adjusted or removed)
+    if move_count >= 40:  # Increased from 20 to 40
         game_over = True
         return True
         
-    if board.is_fifty_moves():
-        game_over = True
-        return True
-        
-    if board.is_repetition(3):
-        game_over = True
-        return True
-        
-    if move_count >= 20:  # 10 moves per side
-        game_over = True
-        return True
+    # Mutual attacks check using correct python-chess methods
+    if board.turn == chess.WHITE:
+        white_king_square = board.king(chess.WHITE)
+        if white_king_square is not None and board.attackers_mask(chess.BLACK, white_king_square):
+            game_over = True
+            return True
+    else:
+        black_king_square = board.king(chess.BLACK)
+        if black_king_square is not None and board.attackers_mask(chess.WHITE, black_king_square):
+            game_over = True
+            return True
         
     return False
+
+def handle_game_end():
+    """Enhanced game end handling with better logging"""
+    try:
+        if not game_over:
+            logger.info("handle_game_end called but game is not over")
+            return
+            
+        logger.info("=== Handling Game End ===")
+        logger.info(f"Final Position: {board.fen()}")
+        logger.info(f"Game Result: {board.result() or '*'}")
+        
+        # Generate game summary with retries
+        max_retries = 3
+        summary = None
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempting to generate summary (attempt {attempt + 1}/{max_retries})")
+                summary = summarize_game(game_tracker, board.result(), move_count)
+                if summary:
+                    logger.info("Summary generated successfully!")
+                    logger.info("Summary content:")
+                    logger.info("-" * 50)
+                    logger.info(summary)
+                    logger.info("-" * 50)
+                    break
+            except Exception as e:
+                logger.warning(f"Summary generation attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:  # Don't sleep on last attempt
+                    time.sleep(1)
+        
+        if not summary:
+            summary = "A summary could not be generated at this time."
+            logger.warning("Failed to generate summary after all attempts")
+        
+        # Get captured pieces
+        white_captured = []
+        black_captured = []
+        try:
+            for capture in game_tracker.captures:
+                if isinstance(capture, tuple) and len(capture) == 2 and capture[1]:
+                    piece_str = chess.piece_name(capture[1].piece_type)
+                    if capture[1].color == chess.WHITE:
+                        white_captured.append(piece_str)
+                    else:
+                        black_captured.append(piece_str)
+        except Exception as e:
+            logger.error(f"Error processing captures: {str(e)}")
+        
+        # Prepare game over data
+        game_over_data = {
+            'result': board.result() or '*',
+            'summary': summary,
+            'final_position': board.fen(),
+            'move_count': move_count,
+            'white_captured': white_captured,
+            'black_captured': black_captured,
+            'status': _get_game_over_message()
+        }
+        
+        # Log what we're about to emit
+        logger.info("Preparing to emit game_over event with data:")
+        logger.info(f"Result: {game_over_data['result']}")
+        logger.info(f"Move Count: {game_over_data['move_count']}")
+        logger.info(f"White Captured: {game_over_data['white_captured']}")
+        logger.info(f"Black Captured: {game_over_data['black_captured']}")
+        logger.info(f"Status: {game_over_data['status']}")
+        
+        # Emit game over event
+        try:
+            socketio.emit('game_over', game_over_data)
+            logger.info("Successfully emitted game_over event")
+        except Exception as e:
+            logger.error(f"Error emitting game over event: {str(e)}")
+            
+    except Exception as e:
+        logger.error(f"Error in handle_game_end: {str(e)}", exc_info=True)
+        socketio.emit('error', {
+            'message': 'Error handling game end',
+            'details': str(e)
+        })
 
 def check_made_move(msg: str) -> bool:
     """Check if a move was made and update game status"""
@@ -492,42 +699,73 @@ def check_made_move(msg: str) -> bool:
     return game_over
 
 def summarize_game(tracker: GameTracker, result: str, total_moves: int) -> str:
-    """Enhanced game summary"""
+    """Enhanced game summary generation with detailed logging"""
     try:
-        # Get more detailed game information
+        logger.info("=== Starting Game Summary Generation ===")
+        
+        # Get game information
         opening_phase = tracker.moves[:10]
         material_changes = tracker.material_balance
         position_changes = tracker.position_scores
         game_phase = _determine_game_phase(total_moves)
         
-        summary_prompt = f"""
-        Analyze this chess game concisely:
-        Game Result: {result}
-        Total Moves: {total_moves}
-        Opening: {', '.join(opening_phase)}
-        Material Changes: {material_changes}
-        Position Scores: {position_changes}
-        Game Phase: {game_phase}
-        Captures: {len(tracker.captures)}
-        Checks: {len(tracker.checks)}
-        Castling: {len(tracker.castlings)}
-
-        Focus on:
-        1. Key turning points
-        2. Critical decisions
-        3. Final position analysis
-        4. Clear winning/losing factors
+        # Log the input data
+        logger.info(f"Game Data for Summary:")
+        logger.info(f"Result: {result}")
+        logger.info(f"Total Moves: {total_moves}")
+        logger.info(f"Opening Moves: {', '.join(opening_phase[:5])}")
+        logger.info(f"Material Balance: Start={material_changes[0] if material_changes else 0}, End={material_changes[-1] if material_changes else 0}")
+        logger.info(f"Captures: {len(tracker.captures)}")
         
-        Provide a brief, clear summary of how the game progressed and concluded.
+        summary_prompt = f"""
+        Chess Game Analysis Summary:
+        
+        Result: {result}
+        Total Moves: {total_moves}
+        Opening Phase: {', '.join(opening_phase[:5])}
+        Material Changes: Initial {material_changes[0] if material_changes else 0} → Final {material_changes[-1] if material_changes else 0}
+        Position Score Changes: Initial {position_changes[0] if position_changes else 0} → Final {position_changes[-1] if position_changes else 0}
+        Game Phase Reached: {game_phase}
+        Key Events:
+        - Captures: {len(tracker.captures)}
+        - Checks: {len(tracker.checks)}
+        - Castling Moves: {len(tracker.castlings)}
+        
+        Please summarize this chess game concisely, focusing on:
+        1. Key turning points
+        2. Decisive moments
+        3. Final position evaluation
+        4. Winning factors
+
+        Keep summary brief but informative.
         """
         
-        summary = qa.run(summary_prompt)
-        logger.info("Game summary generated successfully")
+        logger.info("Generating summary using LangChain...")
+        
+        # Use new invoke method with error handling
+        try:
+            response = qa.invoke({"query": summary_prompt})
+            summary = response.get('result', '')
+            logger.info("Raw LangChain Response:")
+            logger.info(response)
+        except Exception as e:
+            logger.error(f"LangChain invoke error: {str(e)}")
+            summary = "Error generating detailed summary."
+        
+        if not summary:
+            summary = "The game concluded with the given result after a series of tactical exchanges."
+            logger.warning("Empty summary generated, using default message")
+        else:
+            logger.info("Generated Summary:")
+            logger.info("=" * 50)
+            logger.info(summary)
+            logger.info("=" * 50)
+            
         return summary
         
     except Exception as e:
-        logger.error(f"Error generating game summary: {str(e)}")
-        return f"Error generating summary: {str(e)}"
+        logger.error(f"Error in summarize_game: {str(e)}", exc_info=True)
+        return "A game summary could not be generated at this time."
 
 def _determine_game_phase(total_moves: int) -> str:
     if total_moves <= 10:
@@ -561,30 +799,109 @@ def export_game_to_pgn(board: chess.Board, white_name: str = "Player_White", bla
         logger.error(f"Error exporting game to PGN: {str(e)}")
         raise
 
-# Player setup
-player_system_message = """
-You are a chess player with deep knowledge of chess principles, powered by a hybrid AI system combining language understanding and chess-specific transformers.
-Before making a move, check if the game is over by calling is_game_over().
-Also, before each action, indicate your role (Player_White or Player_Black) in the logs.
-If the game is not over:
-1. Use the get_legal_moves function to get the list of legal moves.
-2. Use the get_best_move function to determine the best move using the hybrid AI system.
-3. Call make_move(move) to make the move. Use only the move in UCI format.
-4. After a move is made, explain your reasoning based on chess principles.
-5. End your message with 'Your move.' to prompt the other player.
-If the game is over, respond with 'The game has ended.' and do not send any further messages.
+# System message for White player
+white_player_system_message = """
+You are a chess player who combines aggressive style with sound principles. Your decision making process:
+
+1. Opening Phase (moves 1-10):
+   - Start with e4 or d4 only
+   - Develop knights to f3 or c3
+   - Don't move queen before move 7
+   - Castle within first 7 moves
+   - Don't attack unless fully developed
+   - Control center squares (e4,d4,e5,d5)
+
+2. Safety Checklist (EVERY move):
+   - Is my king safe?
+   - Are all my pieces protected?
+   - What captures can opponent make?
+   - Does this move help development?
+   - Is there a better square for this piece?
+
+3. Aggressive Strategy:
+   - Only attack AFTER:
+     * Completed development
+     * Castled for king safety
+     * Secured center control
+     * Connected rooks
+   - Look for:
+     * Tactical opportunities
+     * Piece sacrifices with clear compensation
+     * Pawn breaks to open position
+     * Direct attacks against king
+
+4. Move Selection Process:
+   1. Check all captures
+   2. Check all checks
+   3. Look for tactical shots
+   4. Consider positional improvements
+   5. Choose move that follows opening principles
+   6. Verify move is safe
+
+Before EACH move:
+1. Use get_legal_moves() to see options
+2. Use get_best_move() for evaluation
+3. Verify move follows above principles
+4. Explain your reasoning
+"""
+
+# System message for Black player
+black_player_system_message = """
+You are a chess player who focuses on solid positional play. Your decision making process:
+
+1. Opening Phase (moves 1-10):
+   - Respond to e4 with e5 or c5
+   - Respond to d4 with d5 or nf6
+   - Develop knights first
+   - Don't move queen before move 7
+   - Castle within first 8 moves
+   - Control center squares
+
+2. Safety Checklist (EVERY move):
+   - Is my king safe?
+   - Are all my pieces protected?
+   - What captures can opponent make?
+   - Does this move help development?
+   - Is there a better square for this piece?
+
+3. Positional Strategy:
+   - Focus on:
+     * Solid pawn structure
+     * Piece coordination
+     * Control of key squares
+     * Bishop pair advantage
+     * Knight outposts
+   - Avoid:
+     * Pawn weaknesses
+     * Isolated pawns
+     * Exposed king
+     * Undefended pieces
+
+4. Move Selection Process:
+   1. Check all opponent threats
+   2. Look for defensive resources
+   3. Find pawn structure improvements
+   4. Position pieces actively
+   5. Create long-term advantages
+   6. Verify move safety
+
+Before EACH move:
+1. Use get_legal_moves() to see options
+2. Use get_best_move() for evaluation
+3. Verify move follows above principles
+4. Explain your reasoning
 """
 
 # Create player agents
 player_white = ConversableAgent(
     name="Player_White",
-    system_message=player_system_message,
+    system_message=white_player_system_message,
     llm_config=llm_config,
 )
 
 player_black = ConversableAgent(
     name="Player_Black",
-    system_message=player_system_message,
+    system_message=black_player_system_message,
     llm_config=llm_config,
 )
 
@@ -612,7 +929,7 @@ commentator_agent = ConversableAgent(
 for caller in [player_white, player_black]:
     register_function(is_game_over, caller=caller, executor=board_proxy, name="is_game_over", description="Check if the game is over.")
     register_function(make_move, caller=caller, executor=board_proxy, name="make_move", description="Make a move on the chess board.")
-    register_function(get_best_move, caller=caller, executor=board_proxy, name="get_best_move", description="Get the best move based on hybrid AI analysis.")
+    register_function(get_best_move, caller=caller, executor=board_proxy, name="get_best_move", description="Get the best move based on Chess engine analysis.")
     register_function(get_legal_moves, caller=caller, executor=board_proxy, name="get_legal_moves", description="Get a list of legal moves in the current position.")
     register_function(generate_commentary, caller=commentator_agent, executor=board_proxy, name="generate_commentary", description="Generate chess commentary")
 
@@ -661,7 +978,7 @@ def export_pgn():
         logger.error(f"Error exporting PGN: {str(e)}")
         return str(e), 500
 
-@socketio.on('connect')
+@socketio.on('connect', namespace='/')
 def handle_connect():
     emit('game_state', {
         'fen': board.fen(),
@@ -674,14 +991,21 @@ def handle_make_move(data):
     try:
         move = data['move']
         result, explanation, is_game_over = make_move(move)
-        emit('move_made', {
+        
+        move_data = {
             'move': move,
             'result': result,
             'explanation': explanation,
             'fen': board.fen(),
             'legal_moves': [m.uci() for m in board.legal_moves],
             'game_over': is_game_over
-        })
+        }
+        
+        emit('move_made', move_data)
+        
+        if is_game_over:
+            handle_game_end()
+            
         logger.info(f"Move handled: {move}")
     except Exception as e:
         logger.error(f"Error handling move: {str(e)}")
@@ -691,25 +1015,30 @@ def handle_make_move(data):
 def handle_ai_move():
     try:
         logger.info("AI move requested")
+        
+        if game_over:
+            handle_game_end()
+            return
+            
+        # Rest of the AI move handling code...
         best_move, explanation, evaluation = get_best_move(
             board.fen(), 
             [m.uci() for m in board.legal_moves]
         )
-        result, explanation, game_over = make_move(best_move, explanation)
+        result, explanation, is_game_over = make_move(best_move, explanation)
         
         emit('move_made', {
             'move': best_move,
             'result': result,
             'explanation': explanation,
-            'evaluation': evaluation,  # Send evaluation with move
+            'evaluation': evaluation,
             'fen': board.fen(),
             'legal_moves': [m.uci() for m in board.legal_moves],
-            'game_over': game_over
+            'game_over': is_game_over
         })
         
-        if game_over:
-            summary = summarize_game(game_tracker, board.result(), move_count)
-            emit('game_summary', {'summary': summary})
+        if is_game_over:
+            handle_game_end()
             
     except Exception as e:
         logger.error(f"Error in AI move: {str(e)}")
@@ -722,7 +1051,7 @@ def handle_reset_game():
         board = chess.Board()
         move_count = 0
         game_over = False
-        game_tracker = GameTracker(evaluator=hybrid_brain)
+        game_tracker = GameTracker(evaluator=chess_engine)
         emit('game_state', {
             'fen': board.fen(),
             'legal_moves': [move.uci() for move in board.legal_moves]
@@ -734,14 +1063,36 @@ def handle_reset_game():
 
 @socketio.on('get_game_summary')
 def handle_get_summary():
+    """Handle game summary request with improved logging"""
     try:
+        logger.info("=== Handling Get Summary Request ===")
+        
+        if not game_over:
+            logger.warning("Summary requested but game is not over")
+            emit('game_summary', {
+                'error': 'Game is not over yet',
+                'summary': None
+            })
+            return
+            
+        logger.info("Generating summary...")
         summary = summarize_game(game_tracker, board.result(), move_count)
-        emit('game_summary', {'summary': summary})
-        logger.info("Game summary generated and sent")
+        
+        logger.info("Emitting summary:")
+        logger.info(summary)
+        
+        emit('game_summary', {
+            'summary': summary,
+            'error': None
+        })
+        logger.info("Summary emitted successfully")
+        
     except Exception as e:
-        logger.error(f"Error getting game summary: {str(e)}")
-        emit('error', {'message': str(e)})
-
+        logger.error(f"Error in handle_get_summary: {str(e)}", exc_info=True)
+        emit('game_summary', {
+            'error': str(e),
+            'summary': None
+        })
 
 @socketio.on('stop_ai_game')
 def handle_stop_game():
