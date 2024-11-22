@@ -248,15 +248,39 @@ function requestGameSummary() {
     socket.emit('get_game_summary');
 }
 
+function updateMoveExplanation(explanation) {
+    const moveExplanation = document.getElementById('move-explanation');
+    moveExplanation.textContent = ''; // Clear previous content
+    moveExplanation.className = '';
+    moveExplanation.classList.remove('new-comment');
+    
+    // Force a reflow to restart animation
+    void moveExplanation.offsetWidth;
+    
+    moveExplanation.textContent = explanation;
+    moveExplanation.style.animation = 'none';
+    void moveExplanation.offsetWidth; // Trigger reflow
+    moveExplanation.style.animation = 'fadeInUp 0.5s ease-out';
+}
+
 // Initialize board
-const config = {
+const config = {    
     draggable: true,
     position: 'start',
     onDragStart: onDragStart,
     onDrop: onDrop,
-    pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png'
+    pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png',
+    boardTheme: {
+        light: '#e8eaed',     // Light squares
+        dark: '#7fa650'       // Dark squares
+    },
+    responsive: true,
 };
 board = Chessboard('board', config);
+
+window.addEventListener('resize', () => {
+    board.resize();
+});
 
 // Socket event handlers
 socket.on('connect', () => {
@@ -294,6 +318,10 @@ socket.on('move_made', (data) => {
         stopAIGame();
         showGameResult();
         requestGameSummary();
+    }
+
+    if (data.explanation) {
+        updateMoveExplanation(data.explanation);
     }
 });
 
