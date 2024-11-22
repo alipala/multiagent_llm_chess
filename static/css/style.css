@@ -233,7 +233,7 @@ body {
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    border: 3px solid #b58863;
+    border: 3px solid #000000;
     overflow: hidden;
     flex-shrink: 0; /* Prevent avatar from shrinking */
 }
@@ -387,12 +387,12 @@ h2 {
 .game-summary-section {
     margin-top: 20px;
     padding: 15px;
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(0, 0, 0, 0.9);
     border-radius: 8px;
     display: none;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-
+    
 .game-summary-section.visible {
     display: block !important;
 }
