@@ -3,25 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Chess Game</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <title>Chess Game</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 </head>
 <body>
     <div class="game-container">
         <div class="board-container">
-            <h2>Black's Captured Pieces</h2>
-            <div id="black-captured" class="captured-pieces"></div>
-            
+            <!-- Black Player Section -->
+            <div class="player-section">
+                <div class="player-info">
+                    <div class="player-avatar">
+                        <img src="static/img/agents/black-player.jpg" alt="Black Player">
+                    </div>
+                    <div class="player-status">
+                        <div class="thinking-dots" id="black-thinking">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="captured-pieces-container">
+                    <div class="captured-pieces-title">Black's Captured Pieces</div>
+                    <div id="black-captured" class="captured-pieces"></div>
+                </div>
+            </div>
+
+            <!-- Board and Evaluation -->
             <div class="board-eval-container">
                 <div class="evaluation-container">
                     <div class="eval-bar-wrapper">
-                        <span class="eval-score-abbreviated">0</span>
-                        <span class="eval-score-full">0.0</span>
+                        <div class="eval-score-abbreviated">0</div>
+                        <div class="eval-score-full">0.0</div>
                         <div class="eval-bar-fill">
                             <div class="eval-color black"></div>
                             <div class="eval-color draw"></div>
@@ -32,32 +50,61 @@
                 <div id="board"></div>
             </div>
 
-            <h2>White's Captured Pieces</h2>
-            <div id="white-captured" class="captured-pieces"></div>
-            
+            <!-- White Player Section -->
+            <div class="player-section">
+                <div class="player-info">
+                    <div class="player-avatar">
+                        <img src="static/img/agents/white-player.jpg" alt="White Player">
+                    </div>
+                    <div class="player-status">
+                        <div class="thinking-dots" id="white-thinking">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="captured-pieces-container">
+                    <div class="captured-pieces-title">White's Captured Pieces</div>
+                    <div id="white-captured" class="captured-pieces"></div>
+                </div>
+            </div>
+
             <div id="status"></div>
             <div id="game-result"></div>
             <div id="game-duration">Game Duration: 00:00</div>
         </div>
-        
+
         <div class="side-panel">
             <h2>Move History</h2>
-            <div id="move-history" class="scrollable"></div>
-            
-            <h2>Move Commentatory</h2>
-            <div id="move-explanation" class="scrollable"></div>
-            
-            <h2>Game Summary</h2>
-            <div id="game-summary" class="scrollable"></div>
-            
+            <div id="move-history" class="chess-scrollable"></div>
+
+            <!-- Commentator Section -->
+            <div class="commentator-section">
+                <div class="commentator-avatar">
+                    <img src="static/img/agents/commentator.jpg" alt="Commentator">
+                </div>
+                <div class="commentator-content">
+                    <div id="move-explanation" class="chess-scrollable"></div>
+                </div>
+            </div>
+
+            <!-- Game Summary Section -->
+            <div class="game-summary-section">
+                <h2>Game Summary</h2>
+                <div id="game-summary" class="chess-scrollable"></div>
+            </div>
+
+            <!-- Game Controls -->
             <button id="start-ai-game">Start AI vs AI Game</button>
             <button id="stop-ai-game" style="display: none;">Stop AI Game</button>
             <button id="ai-move">AI Move</button>
             <button id="reset-game">Reset Game</button>
             <button id="export-pgn">Export PGN</button>
-            <button id="toggle-eval" class="control-btn">Hide Evaluation</button>
+            <button id="toggle-eval">Hide Evaluation</button>
         </div>
     </div>
+
     <script src="/static/js/main.js"></script>
 </body>
 </html>

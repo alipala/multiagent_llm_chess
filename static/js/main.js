@@ -29,6 +29,7 @@ function onDrop(source, target) {
     if (move === null) return 'snapback';
 
     updateStatus();
+    updateThinkingDots();
     socket.emit('make_move', { move: move.from + move.to });
 }
 
@@ -55,6 +56,7 @@ function updateEvaluation(evaluation) {
 
     const fullScore = Math.max(Math.min(evaluation, 20), -20); // Clamp between -20 and 20
     const abbreviated = Math.abs(fullScore) >= 10 ? Math.round(fullScore) : fullScore.toFixed(1);
+    lastEvaluation = fullScore;
     
     // Update score displays
     document.querySelector('.eval-score-full').textContent = 
@@ -84,17 +86,23 @@ function updateEvaluation(evaluation) {
     }
 }
 
-// Add hover effect for abbreviated/full score
-document.querySelector('.eval-bar-wrapper').addEventListener('mouseenter', () => {
-    document.querySelector('.eval-score-full').style.display = 'none';
-    document.querySelector('.eval-score-abbreviated').style.display = 'block';
-});
-
-function calculateEvalPercentage(evaluation) {
-    const maxEval = 10;
-    const minEval = -10;
-    const normalizedEval = Math.max(minEval, Math.min(maxEval, evaluation));
-    return 50 + (normalizedEval / maxEval) * 50;
+function updateThinkingDots() {
+    const currentTurn = game.turn();
+    const whiteThinking = document.getElementById('white-thinking');
+    const blackThinking = document.getElementById('black-thinking');
+    
+    // Hide both thinking indicators first
+    whiteThinking.classList.remove('active');
+    blackThinking.classList.remove('active');
+    
+    // Show thinking dots for current player
+    if (!game.game_over()) {
+        if (currentTurn === 'w') {
+            whiteThinking.classList.add('active');
+        } else {
+            blackThinking.classList.add('active');
+        }
+    }
 }
 
 function updateMoveHistory(move, result) {
@@ -144,6 +152,9 @@ function startAIGame() {
     gameDurationInterval = setInterval(updateGameDuration, 1000);
     requestAIMove();
     aiInterval = setInterval(requestAIMove, 2000);
+    
+    // Hide game summary when starting new game
+    document.querySelector('.game-summary-section').classList.remove('visible');
 }
 
 function stopAIGame() {
@@ -178,6 +189,9 @@ function showGameResult() {
         result = 'The game is a draw.';
     }
     $('#game-result').text(result);
+    
+    // Show game summary section
+    document.querySelector('.game-summary-section').classList.add('visible');
 }
 
 function resetGame() {
@@ -193,11 +207,15 @@ function resetGame() {
     $('#game-duration').text('Game Duration: 00:00');
     clearInterval(gameDurationInterval);
     updateStatus();
+    updateThinkingDots();
     stopAIGame();
     socket.emit('reset_game');
     
     // Reset evaluation
     updateEvaluation(0);
+    
+    // Hide game summary
+    document.querySelector('.game-summary-section').classList.remove('visible');
 }
 
 function updateGameDuration() {
@@ -232,6 +250,7 @@ socket.on('game_state', (data) => {
     game.load(data.fen);
     board.position(data.fen);
     updateStatus();
+    updateThinkingDots();
 });
 
 socket.on('move_made', (data) => {
@@ -244,11 +263,11 @@ socket.on('move_made', (data) => {
     if (move) {
         board.position(game.fen());
         updateStatus();
+        updateThinkingDots();
         updateMoveHistory(data.move, data.result);
         updateCapturedPieces(move);
         $('#move-explanation').text(data.explanation);
 
-        // Update evaluation if provided
         if (data.evaluation !== undefined) {
             updateEvaluation(data.evaluation);
         }
@@ -263,6 +282,8 @@ socket.on('move_made', (data) => {
 
 socket.on('game_summary', (data) => {
     $('#game-summary').text(data.summary);
+    // Ensure the game summary section is visible
+    document.querySelector('.game-summary-section').classList.add('visible');
 });
 
 socket.on('error', (data) => {
@@ -300,6 +321,21 @@ $(document).ready(function() {
             $(this).text('Show Evaluation');
         }
     });
+
+    // Add hover effect for abbreviated/full score
+    $('.eval-bar-wrapper').hover(
+        function() {
+            $('.eval-score-full').hide();
+            $('.eval-score-abbreviated').show();
+        },
+        function() {
+            $('.eval-score-full').show();
+            $('.eval-score-abbreviated').hide();
+        }
+    );
+
+    // Initialize thinking dots
+    updateThinkingDots();
 });
 
 // PGN Export handler

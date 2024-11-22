@@ -1,3 +1,4 @@
+/* Base styles */
 body {
     font-family: Arial, sans-serif;
     display: flex;
@@ -10,14 +11,17 @@ body {
 
 .game-container {
     display: grid;
-    grid-template-columns: auto 400px;
+    grid-template-columns: minmax(300px, 800px) minmax(250px, 400px);
     grid-gap: 20px;
     background-color: rgba(255, 255, 255, 0.9);
-    padding: 30px;
+    padding: 20px;
     border-radius: 15px;
     box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    max-width: 1400px;
+    margin: 20px auto;
 }
 
+/* Board and Evaluation Styles */
 .board-container {
     display: flex;
     flex-direction: column;
@@ -43,22 +47,6 @@ body {
     overflow: hidden; 
 }
 
-.eval-bar {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    height: 50%;
-    background-color: #ffffff; /* White for positive evaluation */
-    transition: height 0.3s ease;
-}
-
-.eval-wrapper {
-    position: relative;
-    width: 24px;
-    height: 100%;
-    background: #000000; /* Black background */
-}
-
 .eval-bar-wrapper {
     position: relative;
     flex: 1;
@@ -73,7 +61,7 @@ body {
     position: relative;
     width: 100%;
     height: 100%;
-    overflow: hidden; /* Important for containing colors */
+    overflow: hidden;
 }
 
 .eval-score-abbreviated,
@@ -89,7 +77,7 @@ body {
 }
 
 .eval-score-abbreviated {
-    display: none; /* Show only on hover */
+    display: none;
 }
 
 .eval-color {
@@ -119,52 +107,191 @@ body {
     transform: translateY(-50%);
 }
 
-.rank-numbers {
+/* Thinking Dots Animation */
+.thinking-dots {
+    display: none;
+    align-items: center;
+    margin-left: 10px;
+    height: 24px;
+}
+
+.thinking-dots.active {
     display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    width: 20px;
-    color: #808080;
-    font-size: 12px;
-    text-align: center;
 }
 
-.eval-value {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    text-align: center;
-    font-size: 11px;
-    color: #fff;
-    background: #262421;
-    padding: 2px 0;
-    z-index: 2;
+.dot {
+    width: 8px;
+    height: 8px;
+    margin: 0 2px;
+    background-color: #b58863;
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: thinkingDot 1.4s infinite;
 }
 
-.rank-numbers {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    width: 16px;
-    height: 100%;
-    font-size: 12px;
-    color: #999;
-    padding: 4px 0;
+.dot:nth-child(2) {
+    animation-delay: 0.2s;
 }
 
-.rank-numbers div {
-    text-align: center;
-    height: 12.5%;
+.dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes thinkingDot {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+}
+
+/* Player Sections */
+.player-section {
     display: flex;
     align-items: center;
-    justify-content: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    margin: 10px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.player-info {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+    position: relative;
+}
+
+.player-status {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.player-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid #b58863;
+    overflow: hidden;
+    margin-right: 15px;
+}
+
+.player-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Captured Pieces */
+.captured-pieces-container {
+    flex-grow: 1;
+}
+
+.captured-pieces-title {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.captured-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background-color: rgba(240, 217, 181, 0.3);
+    border-radius: 4px;
+    min-height: 2rem;
+}
+
+.captured-row {
+    display: flex;
+    flex-wrap: wrap;
+    max-width: 600px;
+    margin-bottom: 5px;
+}
+
+.captured-piece {
+    font-size: 24px;
+    margin-right: 8px;
+    line-height: 1;
+}
+
+/* Chess Scrollable Containers */
+.chess-scrollable {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 2px solid #b58863;
+    padding: 15px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+    scrollbar-width: thin;
+    scrollbar-color: #b58863 #f0d9b5;
+}
+
+.chess-scrollable::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chess-scrollable::-webkit-scrollbar-track {
+    background: #f0d9b5;
+    border-radius: 4px;
+}
+
+.chess-scrollable::-webkit-scrollbar-thumb {
+    background-color: #b58863;
+    border-radius: 4px;
+    border: 2px solid #f0d9b5;
+}
+
+/* Commentator Section */
+.commentator-section {
+    margin: 20px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.commentator-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid #4CAF50;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.commentator-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.commentator-content {
+    flex-grow: 1;
+}
+
+/* Chess Board */
 #board {
     width: 600px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
+/* Side Panel */
 .side-panel {
     display: flex;
     flex-direction: column;
@@ -183,41 +310,21 @@ h2 {
     font-size: 16px;
 }
 
-.scrollable {
-    flex-grow: 1;
-    overflow-y: auto;
-    border: 1px solid #ccc;
+/* Game Summary Section */
+.game-summary-section {
+    margin-top: 20px;
     padding: 15px;
-    height: 150px;
-    background-color: #fff;
-    border-radius: 5px;
-    margin-bottom: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    display: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.captured-pieces {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    min-height: 2rem;
-    padding: 0.5rem;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    margin-bottom: 15px;
+.game-summary-section.visible {
+    display: block;
 }
 
-.captured-row {
-    display: flex;
-    flex-wrap: wrap;
-    max-width: 600px;
-    margin-bottom: 5px;
-}
-
-.captured-piece {
-    font-size: 24px;
-    margin-right: 8px;
-    line-height: 1;
-}
-
+/* Buttons */
 button {
     margin: 8px 0;
     padding: 12px;
@@ -247,26 +354,20 @@ button:disabled {
 #export-pgn { background-color: #9c27b0; }
 #toggle-eval { background-color: #607d8b; }
 
+/* Move History Items */
 .move-item {
     margin-bottom: 8px;
+    padding: 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.move-item:hover {
+    background-color: rgba(181, 136, 99, 0.1);
 }
 
 .white-move { color: #000; }
 .black-move { color: #666; }
 
 /* Responsive Design */
-@media (max-width: 1200px) {
-    .game-container {
-        grid-template-columns: 1fr;
-    }
-    
-    #board {
-        width: 100%;
-        max-width: 600px;
-        margin: 0 auto;
-    }
-    
-    .side-panel {
-        width: 100%;
-    }
-}
+@media (max-width:
