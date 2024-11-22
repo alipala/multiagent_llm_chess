@@ -86,18 +86,18 @@ function updateEvaluation(evaluation) {
     }
 }
 
+
 function updateThinkingDots() {
-    const currentTurn = game.turn();
     const whiteThinking = document.getElementById('white-thinking');
     const blackThinking = document.getElementById('black-thinking');
     
-    // Hide both thinking indicators first
+    // Hide both thinking indicators by default
     whiteThinking.classList.remove('active');
     blackThinking.classList.remove('active');
     
-    // Show thinking dots for current player
-    if (!game.game_over()) {
-        if (currentTurn === 'w') {
+    // Only show thinking dots if the game is in progress (aiInterval is active)
+    if (aiInterval && !game.game_over()) {
+        if (game.turn() === 'w') {
             whiteThinking.classList.add('active');
         } else {
             blackThinking.classList.add('active');
@@ -143,6 +143,7 @@ function getPieceSymbol(piece) {
     return symbols[piece.toLowerCase()] || '';
 }
 
+
 function startAIGame() {
     $('#start-ai-game').hide();
     $('#stop-ai-game').show();
@@ -153,6 +154,9 @@ function startAIGame() {
     requestAIMove();
     aiInterval = setInterval(requestAIMove, 2000);
     
+    // Update thinking dots after starting the game
+    updateThinkingDots();
+    
     // Hide game summary when starting new game
     document.querySelector('.game-summary-section').classList.remove('visible');
 }
@@ -162,8 +166,13 @@ function stopAIGame() {
     $('#stop-ai-game').hide();
     $('#ai-move').prop('disabled', false);
     clearInterval(aiInterval);
+    aiInterval = null; // Clear the interval reference
     clearInterval(gameDurationInterval);
+    
+    // Hide thinking dots when stopping the game
+    updateThinkingDots();
 }
+
 
 function requestAIMove() {
     if (!game.game_over()) {
@@ -208,8 +217,15 @@ function resetGame() {
     $('#game-duration').text('Game Duration: 00:00');
     clearInterval(gameDurationInterval);
     updateStatus();
+    
+    // Stop AI game if it's running
+    if (aiInterval) {
+        stopAIGame();
+    }
+    
+    // Update thinking dots after reset
     updateThinkingDots();
-    stopAIGame();
+    
     socket.emit('reset_game');
     
     // Reset evaluation
@@ -335,10 +351,9 @@ $(document).ready(function() {
             $('.eval-score-abbreviated').hide();
         }
     );
-
-    // Initialize thinking dots
-    updateThinkingDots();
 });
+
+updateStatus();
 
 // PGN Export handler
 socket.on('pgn_data', (data) => {
