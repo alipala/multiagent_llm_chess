@@ -1,62 +1,102 @@
+/* Modern Font Imports */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Base styles */
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Outfit', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
     margin: 0;
-    background: linear-gradient(135deg, #f0d9b5 0%, #b58863 100%);
+    background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
+    color: #ffffff;
 }
 
 .game-container {
     display: grid;
-    grid-template-columns: auto 400px;
+    grid-template-columns: minmax(300px, 800px) minmax(250px, 400px);
     grid-gap: 20px;
-    background-color: rgba(255, 255, 255, 0.9);
-    padding: 30px;
+    width: 100%;
+    background-color: rgba(40, 40, 40, 0.95);
+    padding: 20px;
     border-radius: 15px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+    max-width: 1400px;
+    margin: 20px auto;
 }
 
+/* Board and Evaluation Styles */
 .board-container {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    max-width: 800px;
 }
 
+
+/* In your style.css file */
+.white-square {
+    background-color: #e8eaed !important;
+}
+
+.black-square {
+    background-color: #7fa650 !important;
+}
+
+/* Alternative method using the actual classes used by Chessboard.js */
+.square-55d63 {
+    width: 12.5% !important;
+    height: 0 !important;
+    padding-bottom: 12.5% !important;
+    position: relative;
+    background-color: #e8eaed;  /* Default color for light squares */
+}
+
+.black-3c85d {
+    background-color: #7fa650 !important;  /* Dark squares */
+}
+
+.white-1e1d7 {
+    background-color: #e8eaed !important;  /* Light squares */
+}
+
+/* Add hover effect for squares */
+.square-55d63:hover {
+    opacity: 0.9;
+}
+
+/* Add highlight for selected squares */
+.highlight-square {
+    box-shadow: inset 0 0 3px 3px yellow;
+}
+
+/* Highlight legal moves */
+.highlight-legal-move {
+    background: radial-gradient(circle, rgba(20,85,30,0.5) 20%, transparent 20%) !important;
+}
+
+/* Board and evaluation container */
 .board-eval-container {
     position: relative;
     display: flex;
     align-items: flex-start;
     gap: 0;
     margin: 20px 0;
+    width: 100%;
 }
 
+/* Evaluation bar styling */
 .evaluation-container {
     position: relative;
     display: flex;
-    height: 600px;
+    height: 700px !important; /* Increased height to match the board */
     width: 50px;
     margin-right: 10px;
-    background: #262421;
+    background: #1a1a1a;
+    border: 1px solid #444;
     color: #fff;
-    border: 1px solid #666; 
-    overflow: hidden; 
-}
-
-.eval-bar {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    height: 50%;
-    background-color: #ffffff; /* White for positive evaluation */
-    transition: height 0.3s ease;
-}
-
-.eval-wrapper {
-    position: relative;
-    width: 24px;
-    height: 100%;
-    background: #000000; /* Black background */
 }
 
 .eval-bar-wrapper {
@@ -65,7 +105,7 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #404040;
+    background: #333;
     overflow: hidden;
 }
 
@@ -73,11 +113,14 @@ body {
     position: relative;
     width: 100%;
     height: 100%;
-    overflow: hidden; /* Important for containing colors */
+    overflow: hidden;
 }
 
 .eval-score-abbreviated,
 .eval-score-full {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.5px;
     position: absolute;
     left: 0;
     width: 100%;
@@ -89,7 +132,7 @@ body {
 }
 
 .eval-score-abbreviated {
-    display: none; /* Show only on hover */
+    display: none;
 }
 
 .eval-color {
@@ -119,90 +162,117 @@ body {
     transform: translateY(-50%);
 }
 
-.rank-numbers {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    width: 20px;
-    color: #808080;
-    font-size: 12px;
-    text-align: center;
-}
-
-.eval-value {
+.thinking-dots {
+    display: none;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    background: rgba(35, 35, 35, 0.9);
+    border-radius: 12px; 
     position: absolute;
-    left: 0;
-    width: 100%;
-    text-align: center;
-    font-size: 11px;
-    color: #fff;
-    background: #262421;
-    padding: 2px 0;
+    bottom: -60px;
+    right: -20px;
     z-index: 2;
 }
 
-.rank-numbers {
+.thinking-dots.active {
     display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    width: 16px;
-    height: 100%;
-    font-size: 12px;
-    color: #999;
-    padding: 4px 0;
 }
 
-.rank-numbers div {
-    text-align: center;
-    height: 12.5%;
+.dot {
+    width: 8px;
+    height: 8px;
+    margin: 0 3px;
+    background-color: #4CAF50;
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: thinkingDot 1.4s infinite;
+}
+
+.dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes thinkingDot {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+        background-color: #66bb6a;
+    }
+}
+
+/* Player Sections */
+.player-section {
     display: flex;
     align-items: center;
-    justify-content: center;
+    padding: 10px;
+    background: rgba(50, 50, 50, 0.9);
+    border: 1px solid #444;
+    border-radius: 8px;
+    margin: 5px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-#board {
-    width: 600px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-}
-
-.side-panel {
+.player-info {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    position: relative;
+    margin-right: 20px;
+    min-width: 80px;
 }
 
-h2 {
-    font-size: 20px;
-    margin-bottom: 10px;
-    color: #333;
-    border-bottom: 2px solid #b58863;
-    padding-bottom: 5px;
+.player-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid #000000;
+    overflow: hidden;
+    flex-shrink: 0; /* Prevent avatar from shrinking */
 }
 
-#status, #game-result, #game-duration {
-    margin-bottom: 15px;
-    font-size: 16px;
+.player-status {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    left: 100%; /* Position it right after the avatar */
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 10px; /* Add space between avatar and dots */
 }
 
-.scrollable {
+.player-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Captured Pieces */
+.captured-pieces-container {
     flex-grow: 1;
-    overflow-y: auto;
-    border: 1px solid #ccc;
-    padding: 15px;
-    height: 150px;
-    background-color: #fff;
-    border-radius: 5px;
-    margin-bottom: 15px;
+}
+
+.captured-pieces-title {
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 5px;
 }
 
 .captured-pieces {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    min-height: 2rem;
     padding: 0.5rem;
-    background-color: #f8f9fa;
+    background-color: rgba(40, 40, 40, 0.3);
     border-radius: 4px;
-    margin-bottom: 15px;
+    min-height: 2rem;
 }
 
 .captured-row {
@@ -218,24 +288,141 @@ h2 {
     line-height: 1;
 }
 
+/* Chess Scrollable Containers */
+.chess-scrollable {
+    flex-grow: 1;
+    overflow-y: auto;
+    border: 2px solid #444;
+    padding: 15px;
+    height: 200px;
+    background: rgba(35, 35, 35, 0.95);
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+    scrollbar-width: thin;
+    scrollbar-color: #444 #333;
+}
+
+.chess-scrollable::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chess-scrollable::-webkit-scrollbar-track {
+    background: #333;
+    border-radius: 4px;
+}
+
+.chess-scrollable::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border: 2px solid #333;
+    border-radius: 4px;
+}
+
+/* Commentator Section */
+.commentator-section {
+    margin: 20px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(35, 35, 35, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+#move-explanation {
+    animation: slideIn 0.3s ease-out;
+}
+
+.commentator-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid #4CAF50;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.commentator-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.commentator-content {
+    flex-grow: 1;
+}
+
+/* Chess Board */
+#board {
+    width: calc(100% - 40px) !important; /* Subtract evaluation bar width + margin */
+    max-width: 700px;
+    height: auto !important;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* Side Panel */
+.side-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+h2 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-size: 18px;
+}
+
+#status, #game-result, #game-duration {
+    margin-bottom: 15px;
+    font-size: 16px;
+    color: #ddd;
+}
+
+/* Game Summary Section */
+.game-summary-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(35, 35, 35, 0.95);
+    border-radius: 8px;
+    display: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+    
+.game-summary-section.visible {
+    display: block !important;
+}
+
+/* Buttons */
 button {
+    background-color: #444;
     margin: 8px 0;
     padding: 12px;
-    font-size: 16px;
     cursor: pointer;
     color: white;
-    border: none;
+    border: 1px solid #555;
     border-radius: 5px;
     transition: all 0.3s ease;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-size: 14px;
 }
 
 button:hover {
+    background-color: #555;
     opacity: 0.8;
     transform: translateY(-2px);
 }
 
 button:disabled {
-    background-color: #ccc;
+    background-color: #333;
+    color: #666;
     cursor: not-allowed;
     transform: none;
 }
@@ -247,26 +434,107 @@ button:disabled {
 #export-pgn { background-color: #9c27b0; }
 #toggle-eval { background-color: #607d8b; }
 
+/* Move History Items */
 .move-item {
+    background-color: rgba(60, 60, 60, 0.3);
     margin-bottom: 8px;
+    padding: 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+
 }
 
-.white-move { color: #000; }
-.black-move { color: #666; }
+.move-item:hover {
+    background-color: rgba(80, 80, 80, 0.4);
+}
 
-/* Responsive Design */
+/* Game status and titles */
+#status, #game-result, #game-duration, .captured-pieces-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+/* Move history and game info */
+.move-item, .chess-scrollable {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+}
+
+.white-move { color: #fff; }
+.black-move { color: #aaa; }
+
+.new-comment {
+    overflow: hidden;
+    border-right: none; 
+    white-space: normal !important; 
+    margin: 0;
+    animation: 
+        typing 1.5s steps(40, end),
+        blink-caret 0.75s step-end infinite,
+        fadeInUp 0.5s ease-out;
+}
+
+@media (max-width: 768px) {
+    .player-status {
+        margin-left: 5px; /* Less space on mobile */
+    }
+    
+    .thinking-dots {
+        padding: 0 3px;
+    }
+    
+    .dot {
+        width: 6px;
+        height: 6px;
+        margin: 0 1px;
+    }
+}
+
 @media (max-width: 1200px) {
     .game-container {
         grid-template-columns: 1fr;
     }
     
     #board {
-        width: 100%;
         max-width: 600px;
         margin: 0 auto;
     }
     
-    .side-panel {
-        width: 100%;
+    .evaluation-container {
+        height: calc(100% - 30px);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes typing {
+    from { width: 100% }
+    to { width: 100% }
+}
+
+@keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: transparent }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }

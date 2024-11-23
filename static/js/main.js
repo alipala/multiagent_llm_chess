@@ -29,6 +29,7 @@ function onDrop(source, target) {
     if (move === null) return 'snapback';
 
     updateStatus();
+    updateThinkingDots();
     socket.emit('make_move', { move: move.from + move.to });
 }
 
@@ -55,6 +56,7 @@ function updateEvaluation(evaluation) {
 
     const fullScore = Math.max(Math.min(evaluation, 20), -20); // Clamp between -20 and 20
     const abbreviated = Math.abs(fullScore) >= 10 ? Math.round(fullScore) : fullScore.toFixed(1);
+    lastEvaluation = fullScore;
     
     // Update score displays
     document.querySelector('.eval-score-full').textContent = 
@@ -84,17 +86,23 @@ function updateEvaluation(evaluation) {
     }
 }
 
-// Add hover effect for abbreviated/full score
-document.querySelector('.eval-bar-wrapper').addEventListener('mouseenter', () => {
-    document.querySelector('.eval-score-full').style.display = 'none';
-    document.querySelector('.eval-score-abbreviated').style.display = 'block';
-});
 
-function calculateEvalPercentage(evaluation) {
-    const maxEval = 10;
-    const minEval = -10;
-    const normalizedEval = Math.max(minEval, Math.min(maxEval, evaluation));
-    return 50 + (normalizedEval / maxEval) * 50;
+function updateThinkingDots() {
+    const whiteThinking = document.getElementById('white-thinking');
+    const blackThinking = document.getElementById('black-thinking');
+    
+    // Hide both thinking indicators by default
+    whiteThinking.classList.remove('active');
+    blackThinking.classList.remove('active');
+    
+    // Only show thinking dots if the game is in progress (aiInterval is active)
+    if (aiInterval && !game.game_over()) {
+        if (game.turn() === 'w') {
+            whiteThinking.classList.add('active');
+        } else {
+            blackThinking.classList.add('active');
+        }
+    }
 }
 
 function updateMoveHistory(move, result) {
@@ -135,6 +143,7 @@ function getPieceSymbol(piece) {
     return symbols[piece.toLowerCase()] || '';
 }
 
+
 function startAIGame() {
     $('#start-ai-game').hide();
     $('#stop-ai-game').show();
@@ -144,6 +153,12 @@ function startAIGame() {
     gameDurationInterval = setInterval(updateGameDuration, 1000);
     requestAIMove();
     aiInterval = setInterval(requestAIMove, 2000);
+    
+    // Update thinking dots after starting the game
+    updateThinkingDots();
+    
+    // Hide game summary when starting new game
+    document.querySelector('.game-summary-section').classList.remove('visible');
 }
 
 function stopAIGame() {
@@ -151,8 +166,13 @@ function stopAIGame() {
     $('#stop-ai-game').hide();
     $('#ai-move').prop('disabled', false);
     clearInterval(aiInterval);
+    aiInterval = null; // Clear the interval reference
     clearInterval(gameDurationInterval);
+    
+    // Hide thinking dots when stopping the game
+    updateThinkingDots();
 }
+
 
 function requestAIMove() {
     if (!game.game_over()) {
@@ -178,6 +198,10 @@ function showGameResult() {
         result = 'The game is a draw.';
     }
     $('#game-result').text(result);
+    
+    // Show game summary section immediately and request the summary
+    $('.game-summary-section').show();
+    requestGameSummary();
 }
 
 function resetGame() {
@@ -193,11 +217,22 @@ function resetGame() {
     $('#game-duration').text('Game Duration: 00:00');
     clearInterval(gameDurationInterval);
     updateStatus();
-    stopAIGame();
+    
+    // Stop AI game if it's running
+    if (aiInterval) {
+        stopAIGame();
+    }
+    
+    // Update thinking dots after reset
+    updateThinkingDots();
+    
     socket.emit('reset_game');
     
     // Reset evaluation
     updateEvaluation(0);
+    
+    // Hide game summary
+    document.querySelector('.game-summary-section').classList.remove('visible');
 }
 
 function updateGameDuration() {
@@ -213,15 +248,39 @@ function requestGameSummary() {
     socket.emit('get_game_summary');
 }
 
+function updateMoveExplanation(explanation) {
+    const moveExplanation = document.getElementById('move-explanation');
+    moveExplanation.textContent = ''; // Clear previous content
+    moveExplanation.className = '';
+    moveExplanation.classList.remove('new-comment');
+    
+    // Force a reflow to restart animation
+    void moveExplanation.offsetWidth;
+    
+    moveExplanation.textContent = explanation;
+    moveExplanation.style.animation = 'none';
+    void moveExplanation.offsetWidth; // Trigger reflow
+    moveExplanation.style.animation = 'fadeInUp 0.5s ease-out';
+}
+
 // Initialize board
-const config = {
+const config = {    
     draggable: true,
     position: 'start',
     onDragStart: onDragStart,
     onDrop: onDrop,
-    pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png'
+    pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png',
+    boardTheme: {
+        light: '#e8eaed',     // Light squares
+        dark: '#7fa650'       // Dark squares
+    },
+    responsive: true,
 };
 board = Chessboard('board', config);
+
+window.addEventListener('resize', () => {
+    board.resize();
+});
 
 // Socket event handlers
 socket.on('connect', () => {
@@ -232,6 +291,7 @@ socket.on('game_state', (data) => {
     game.load(data.fen);
     board.position(data.fen);
     updateStatus();
+    updateThinkingDots();
 });
 
 socket.on('move_made', (data) => {
@@ -244,11 +304,11 @@ socket.on('move_made', (data) => {
     if (move) {
         board.position(game.fen());
         updateStatus();
+        updateThinkingDots();
         updateMoveHistory(data.move, data.result);
         updateCapturedPieces(move);
         $('#move-explanation').text(data.explanation);
 
-        // Update evaluation if provided
         if (data.evaluation !== undefined) {
             updateEvaluation(data.evaluation);
         }
@@ -259,10 +319,17 @@ socket.on('move_made', (data) => {
         showGameResult();
         requestGameSummary();
     }
+
+    if (data.explanation) {
+        updateMoveExplanation(data.explanation);
+    }
 });
 
 socket.on('game_summary', (data) => {
     $('#game-summary').text(data.summary);
+    // Ensure the game summary section is visible
+    $('.game-summary-section').show().addClass('visible');
+    document.querySelector('.game-summary-section').classList.add('visible');
 });
 
 socket.on('error', (data) => {
@@ -300,7 +367,21 @@ $(document).ready(function() {
             $(this).text('Show Evaluation');
         }
     });
+
+    // Add hover effect for abbreviated/full score
+    $('.eval-bar-wrapper').hover(
+        function() {
+            $('.eval-score-full').hide();
+            $('.eval-score-abbreviated').show();
+        },
+        function() {
+            $('.eval-score-full').show();
+            $('.eval-score-abbreviated').hide();
+        }
+    );
 });
+
+updateStatus();
 
 // PGN Export handler
 socket.on('pgn_data', (data) => {
