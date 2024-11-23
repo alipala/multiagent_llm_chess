@@ -197,11 +197,20 @@ function showGameResult() {
     } else if (game.in_draw()) {
         result = 'The game is a draw.';
     }
+    
     $('#game-result').text(result);
     
-    // Show game summary section immediately and request the summary
-    $('.game-summary-section').show();
-    requestGameSummary();
+    // Prepare summary section
+    const summarySection = document.querySelector('.game-summary-section');
+    if (summarySection) {
+        summarySection.style.display = 'block';
+        summarySection.classList.remove('visible');
+    }
+    
+    // Request summary after a short delay to ensure proper display
+    setTimeout(() => {
+        requestGameSummary();
+    }, 100);
 }
 
 function resetGame() {
@@ -326,10 +335,63 @@ socket.on('move_made', (data) => {
 });
 
 socket.on('game_summary', (data) => {
-    $('#game-summary').text(data.summary);
-    // Ensure the game summary section is visible
-    $('.game-summary-section').show().addClass('visible');
-    document.querySelector('.game-summary-section').classList.add('visible');
+    console.log('Received game summary:', data); // Debug log
+    
+    const summarySection = document.querySelector('.game-summary-section');
+    const summaryContent = document.getElementById('game-summary');
+    
+    if (!summarySection || !summaryContent) {
+        console.error('Summary elements not found');
+        return;
+    }
+    
+    // Clear previous content
+    summaryContent.textContent = '';
+    
+    if (data.error) {
+        console.error('Summary error:', data.error);
+        summaryContent.textContent = 'Unable to generate game summary.';
+        return;
+    }
+
+    // Create and append new summary with animation
+    const summaryText = document.createElement('div');
+    summaryText.className = 'summary-content';
+    summaryText.textContent = data.summary;
+    
+    // Add statistics if available
+    if (data.statistics) {
+        const stats = document.createElement('div');
+        stats.className = 'summary-statistics';
+        stats.innerHTML = `
+            <br>
+            <strong>Game Statistics:</strong><br>
+            Total Moves: ${data.statistics.total_moves}<br>
+            Captures: ${data.statistics.captures}<br>
+            Checks: ${data.statistics.checks}<br>
+            Average Move Time: ${data.statistics.average_time.toFixed(2)}s
+        `;
+        summaryText.appendChild(stats);
+    }
+
+    // Apply fade-in animation
+    summaryText.style.animation = 'fadeInUp 0.5s ease-out';
+    
+    // Append to container
+    summaryContent.appendChild(summaryText);
+    
+    // Make sure the section is visible first
+    summarySection.style.display = 'block';
+    
+    // Force a reflow
+    void summarySection.offsetHeight;
+    
+    // Add visible class for animation
+    summarySection.classList.add('visible');
+    
+    // Log visibility state
+    console.log('Summary section display:', summarySection.style.display);
+    console.log('Summary section visibility class:', summarySection.classList.contains('visible'));
 });
 
 socket.on('error', (data) => {
@@ -395,5 +457,74 @@ socket.on('pgn_data', (data) => {
     a.click();
     window.URL.revokeObjectURL(url);
 });
+
+const additionalStyles = `
+    .game-summary-section {
+        display: none; /* Start hidden */
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+        margin-top: 20px;
+        padding: 15px;
+        background: rgba(35, 35, 35, 0.95);
+        border-radius: 8px;
+    }
+
+    .game-summary-section.visible {
+        opacity: 1;
+        transform: translateY(0);
+        display: block !important;
+    }
+
+    #game-summary {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+`;
+
+const style = document.createElement('style');
+style.textContent = `
+    .game-summary-section {
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+        background: rgba(35, 35, 35, 0.95);
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+
+    .game-summary-section.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .summary-content {
+        line-height: 1.6;
+        color: #fff;
+    }
+
+    .summary-statistics {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.9em;
+        color: #ddd;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+`;
+style.textContent = additionalStyles + style.textContent;
+document.head.appendChild(style);
 
 updateStatus();
