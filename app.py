@@ -87,7 +87,15 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_url_path='/static')
 app.config['SERVER_NAME'] = None 
 # It is for local run // socketio = SocketIO(app, cors_allowed_origins="*")
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=True, engineio_logger=True)
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins="*", 
+    async_mode='eventlet',
+    logger=True, 
+    engineio_logger=True,
+    ping_timeout=60,
+    ping_interval=25
+)
 
 
 # Load environment variables
@@ -127,14 +135,14 @@ except Exception as e:
 config_list = config_list_from_json(
     "OAI_CONFIG_LIST",
     filter_dict={
-        "model": ["gpt-4", "gpt-4-turbo-preview"],
+        "model": ["gpt-3.5-turbo"],
     },
 )
 
 llm_config = {
     "config_list": config_list,
     "temperature": 0.7,
-    "model": "gpt-4-turbo-preview"
+    "model": "gpt-3.5-turbo"
 }
 
 logger.info(f"Config list: {config_list}")
@@ -246,7 +254,7 @@ retriever = docsearch.as_retriever(search_kwargs={"k": 3})
 
 # Set up the RetrievalQA
 qa = RetrievalQA.from_chain_type(
-    llm=ChatOpenAI(model_name="gpt-4-turbo-preview"),
+    llm=ChatOpenAI(model_name="gpt-3.5-turbo"),
     chain_type="stuff",
     retriever=retriever
 )
@@ -562,22 +570,40 @@ def _get_game_over_message() -> str:
     else:
         return " The game is over."
         
-def generate_commentary(board: Any, move: str, position_eval: float) -> str:
-    logger.info(f"Commentator_Agent: Generating commentary for move {move}")
+def generate_commentary(move_info: str, position_eval: float, board_fen: str) -> str:
+    """Generate rich chess commentary"""
     try:
-        chess_move = chess.Move.from_uci(move)
-        piece = board.piece_at(chess_move.from_square)
-        prompt = f"""Comment on this chess position:
-        - {chess.piece_name(piece.piece_type)} to {chess.square_name(chess_move.to_square)}
-        - Capture: {board.is_capture(chess_move)}
-        - Check: {board.gives_check(chess_move)}
-        - Current evaluation: {position_eval:.2f}
-        - Move number: {board.fullmove_number}"""
+        # Create detailed prompt for commentator
+        prompt = f"""Analyze this chess position:
+
+Position: {board_fen}
+Last Move: {move_info}
+Evaluation: {position_eval:.2f}
+
+Provide concise but insightful commentary covering:
+1. Quality of the move
+2. Strategic implications
+3. Tactical opportunities
+4. Position evaluation
+5. Suggested plans for both sides
+"""
         
-        return commentator_agent.generate(prompt).response
+        # Get commentary
+        commentary = commentator_agent.generate_reply(
+            messages=[{"role": "user", "content": prompt}],
+            sender=None
+        )
+        
+        if commentary:
+            logger.info(colored("\n=== Commentator Analysis ===", "magenta"))
+            logger.info(colored(commentary, "magenta"))
+            logger.info(colored("="*30, "magenta"))
+            return commentary
+            
+        return None
     except Exception as e:
-        logger.error(f"Commentary error: {str(e)}")
-        return "A strategic move in this position."
+        logger.error(colored(f"Error generating commentary: {str(e)}", "red"))
+        return None
 
 def is_game_over() -> bool:
     """Enhanced game over check"""
@@ -805,96 +831,43 @@ def export_game_to_pgn(board: chess.Board, white_name: str = "Player_White", bla
 
 # System message for White player
 white_player_system_message = """
-You are a chess player who combines aggressive style with sound principles. Your decision making process:
+You are a chess player playing as White. You must strictly follow this process for EVERY move:
 
-1. Opening Phase (moves 1-10):
-   - Start with e4 or d4 only
-   - Develop knights to f3 or c3
-   - Don't move queen before move 7
-   - Castle within first 7 moves
-   - Don't attack unless fully developed
-   - Control center squares (e4,d4,e5,d5)
+1. Call get_legal_moves() to see possible moves
+2. Call get_best_move() to evaluate the position
+3. Call make_move() with your chosen move in UCI format
 
-2. Safety Checklist (EVERY move):
-   - Is my king safe?
-   - Are all my pieces protected?
-   - What captures can opponent make?
-   - Does this move help development?
-   - Is there a better square for this piece?
+Choose moves that follow classical principles:
+- Control center (e4/d4)
+- Develop knights to f3/c3
+- Don't bring queen out early
+- Castle within first 7 moves
+- Don't move same piece twice
 
-3. Aggressive Strategy:
-   - Only attack AFTER:
-     * Completed development
-     * Castled for king safety
-     * Secured center control
-     * Connected rooks
-   - Look for:
-     * Tactical opportunities
-     * Piece sacrifices with clear compensation
-     * Pawn breaks to open position
-     * Direct attacks against king
-
-4. Move Selection Process:
-   1. Check all captures
-   2. Check all checks
-   3. Look for tactical shots
-   4. Consider positional improvements
-   5. Choose move that follows opening principles
-   6. Verify move is safe
-
-Before EACH move:
-1. Use get_legal_moves() to see options
-2. Use get_best_move() for evaluation
-3. Verify move follows above principles
-4. Explain your reasoning
-"""
+Always call the functions in this exact order:
+1. get_legal_moves()
+2. get_best_move()
+3. make_move()"""
 
 # System message for Black player
 black_player_system_message = """
-You are a chess player who focuses on solid positional play. Your decision making process:
+You are a chess player playing as Black. You must strictly follow this process for EVERY move:
 
-1. Opening Phase (moves 1-10):
-   - Respond to e4 with e5 or c5
-   - Respond to d4 with d5 or nf6
-   - Develop knights first
-   - Don't move queen before move 7
-   - Castle within first 8 moves
-   - Control center squares
+1. Call get_legal_moves() to see possible moves  
+2. Call get_best_move() to evaluate the position
+3. Call make_move() with your chosen move in UCI format
 
-2. Safety Checklist (EVERY move):
-   - Is my king safe?
-   - Are all my pieces protected?
-   - What captures can opponent make?
-   - Does this move help development?
-   - Is there a better square for this piece?
+Choose moves that follow classical principles:
+- Control center (e5/d5)
+- Develop knights to f6/c6  
+- Don't bring queen out early
+- Castle within first 8 moves
+- Don't move same piece twice
 
-3. Positional Strategy:
-   - Focus on:
-     * Solid pawn structure
-     * Piece coordination
-     * Control of key squares
-     * Bishop pair advantage
-     * Knight outposts
-   - Avoid:
-     * Pawn weaknesses
-     * Isolated pawns
-     * Exposed king
-     * Undefended pieces
-
-4. Move Selection Process:
-   1. Check all opponent threats
-   2. Look for defensive resources
-   3. Find pawn structure improvements
-   4. Position pieces actively
-   5. Create long-term advantages
-   6. Verify move safety
-
-Before EACH move:
-1. Use get_legal_moves() to see options
-2. Use get_best_move() for evaluation
-3. Verify move follows above principles
-4. Explain your reasoning
-"""
+Always call the functions in this exact order:
+1. get_legal_moves()
+2. get_best_move() 
+3. make_move()"""
 
 # Create player agents
 player_white = ConversableAgent(
@@ -919,56 +892,127 @@ board_proxy = ConversableAgent(
     human_input_mode="NEVER",
 )
 
+
+
+# System message for commentator
+commentator_system_message = """
+You are an expert chess commentator providing insightful analysis. For each move:
+
+1. Evaluate position changes
+2. Highlight tactical opportunities
+3. Explain strategic implications
+4. Consider piece activity & coordination
+5. Discuss pawn structure impact
+
+Always analyze from both players' perspectives and keep commentary engaging."""
+
 commentator_agent = ConversableAgent(
     name="Chess_Commentator",
-    system_message="""You are an enthusiastic chess commentator providing engaging, insightful commentary.
-    Focus on:
-    1. Tactical elements (captures, threats, combinations)
-    2. Strategic implications (pawn structure, piece placement)
-    3. Position evaluation and potential plans
-    4. Historical context of similar positions""",
+    system_message=commentator_system_message,
     llm_config=llm_config,
     human_input_mode="NEVER"
 )
 
 def log_agent_conversation(sender: str, recipient: str, message: Any):
-    """Log conversations between agents including function calls and responses"""
-    
-    # Print separator line
-    logger.info("="*80)
-    
-    # Print the basic message direction
-    logger.info(f"{sender} -> {recipient}")
-    
-    # Handle different message types
-    if isinstance(message, dict):
-        # Handle function/tool calls
-        if "function_call" in message:
-            func_call = message["function_call"]
-            logger.info(colored(f"Function Call: {func_call['name']}", "green"))
-            logger.info(f"Arguments: {func_call.get('arguments', '{}')}")
-            
-        elif "tool_calls" in message:
-            for tool_call in message["tool_calls"]:
-                func = tool_call["function"]
-                logger.info(colored(f"Tool Call ({tool_call['id']}): {func['name']}", "green"))
-                logger.info(f"Arguments: {func.get('arguments', '{}')}")
-                
-        # Handle function/tool responses
-        elif message.get("role") in ["function", "tool"]:
-            logger.info(colored("Response from execution:", "yellow"))
-            logger.info(message.get("content", ""))
-            
-        # Handle regular content
-        elif "content" in message:
-            logger.info(message["content"])
-            
-    else:
-        # Handle string messages
-        logger.info(message)
+    """Enhanced logging of agent conversations with better structure and color coding"""
+    try:
+        # Print direction with color
+        logger.info(colored(f"\n{'='*40} {sender} -> {recipient} {'='*40}", "yellow"))
         
-    # Print separator
-    logger.info("-"*80)
+        # Handle different message types
+        if isinstance(message, dict):
+            # Log content if present
+            if message.get("content"):
+                logger.info(colored("Message:", "cyan"))
+                logger.info(message["content"])
+            
+            # Log function calls with green
+            if "function_call" in message:
+                func_call = message["function_call"]
+                if isinstance(func_call, dict):
+                    name = func_call.get("name", "unknown")
+                    args = func_call.get("arguments", "{}")
+                    logger.info(colored(f"\n>>>>>>>> EXECUTING FUNCTION: {name}", "green"))
+                    logger.info(colored("Arguments:", "green"))
+                    logger.info(args)
+            
+            # Log tool calls with blue        
+            if "tool_calls" in message:
+                for tool_call in message.get("tool_calls", []):
+                    if isinstance(tool_call, dict) and "function" in tool_call:
+                        func = tool_call["function"]
+                        name = func.get("name", "unknown")
+                        args = func.get("arguments", "{}")
+                        logger.info(colored(f"\n>>>>>>>> EXECUTING TOOL: {name}", "blue"))
+                        logger.info(colored("Arguments:", "blue"))
+                        logger.info(args)
+            
+            # Log function/tool responses with magenta
+            if message.get("role") in ["function", "tool"]:
+                logger.info(colored("\nFunction/Tool Response:", "magenta"))
+                logger.info(colored(message.get("content", "No content"), "magenta"))
+                
+        elif isinstance(message, str):
+            logger.info(colored("Message:", "cyan"))
+            logger.info(message)
+            
+        # Print separator
+        logger.info(colored(f"{'='*100}", "yellow"))
+        
+    except Exception as e:
+        logger.error(f"Error in logging: {str(e)}")
+
+def register_conversation_logging(agent: ConversableAgent):
+    """Register logging hooks for an agent with improved structure"""
+    
+    def log_process_message(sender, message, recipient, silent):
+        """Log messages being sent"""
+        if not silent:
+            log_agent_conversation(sender.name, recipient.name, message)
+        return message
+        
+    def log_messages_before_reply(messages):
+        """Log messages before generating reply"""
+        if messages and len(messages) > 0:
+            last_msg = messages[-1]
+            if isinstance(last_msg, dict) and "sender" in last_msg:
+                log_agent_conversation(
+                    last_msg["sender"].name,
+                    agent.name,
+                    last_msg
+                )
+        return messages
+
+    def process_received_message(message):
+        """Process and structure received messages"""
+        if message:
+            # Add commentary if this is a move
+            if isinstance(message, dict) and message.get("role") == "function":
+                if message.get("name") in ["make_move", "get_best_move"]:
+                    try:
+                        # Generate commentary
+                        commentary = commentator_agent.generate_reply(
+                            messages=[{"content": str(message.get("content"))}]
+                        )
+                        if commentary:
+                            logger.info(colored("\nCommentator Analysis:", "magenta"))
+                            logger.info(colored(commentary, "magenta"))
+                    except Exception as e:
+                        logger.error(f"Error generating commentary: {e}")
+                        
+        return message
+    
+    # Register the hooks
+    agent.register_hook("process_message_before_send", log_process_message)
+    agent.register_hook("process_all_messages_before_reply", log_messages_before_reply) 
+    agent.register_hook("process_last_received_message", process_received_message)
+
+# Register logging for all agents  
+register_conversation_logging(player_white)
+register_conversation_logging(player_black)
+register_conversation_logging(board_proxy)
+register_conversation_logging(commentator_agent)
+
 
 # Add these hooks to both agents
 def register_conversation_logging(agent: ConversableAgent):
@@ -1002,33 +1046,33 @@ register_conversation_logging(commentator_agent)
 # Function registration
 for caller in [player_white, player_black]:
     register_function(
-        is_game_over, 
-        caller=caller, 
-        executor=board_proxy, 
-        name="is_game_over",
-        description="Check if the game is over."
-    )
+            is_game_over, 
+            caller=caller, 
+            executor=board_proxy, 
+            name="is_game_over",
+            description="Check if the game is over."
+        )
     register_function(
-        make_move,
-        caller=caller,
-        executor=board_proxy,
-        name="make_move",
-        description="Make a move on the chess board in UCI format (e.g. e2e4). Returns the move result and game state."
-    )
+            make_move,
+            caller=caller,
+            executor=board_proxy,
+            name="make_move",
+            description="Make a move on the chess board in UCI format (e.g. e2e4). Returns the move result and game state."
+        )
     register_function(
-        get_best_move,
-        caller=caller,
-        executor=board_proxy,
-        name="get_best_move", 
-        description="Get the best move based on Chess engine analysis. Takes board state in FEN format and list of legal moves in UCI format as input."
-    )
+            get_best_move,
+            caller=caller,
+            executor=board_proxy,
+            name="get_best_move", 
+            description="Get the best move based on Chess engine analysis. Takes board state in FEN format and list of legal moves in UCI format as input."
+        )
     register_function(
-        get_legal_moves,
-        caller=caller,
-        executor=board_proxy,
-        name="get_legal_moves",
-        description="Get a list of legal moves in the current position. Returns list of moves in UCI format."
-    )
+            get_legal_moves,
+            caller=caller,
+            executor=board_proxy,
+            name="get_legal_moves",
+            description="Get a list of legal moves in the current position. Returns list of moves in UCI format."
+        )
 
 # Register nested chats
 player_white.register_nested_chats(
@@ -1063,45 +1107,104 @@ for player in [player_white, player_black]:
 
 def initiate_move_sequence():
     """Initiate a sequence of moves between chess agents"""
-    # Get legal moves first
     legal_moves = [m.uci() for m in board.legal_moves]
     turn = 'White' if board.turn else 'Black'
     current_player = player_white if turn == 'White' else player_black
     opponent = player_black if turn == 'White' else player_white
     
-    # Create message with proper function call structure
-    message = {
-        "content": f"It's {turn}'s turn. Legal moves: {', '.join(legal_moves)}. Make your move.",
-        "function_call": {
-            "name": "get_legal_moves",
-            "arguments": json.dumps({
+    logger.info(f"Initiating move sequence for {turn}")
+    
+    try:
+        # Create a single message that prompts for both legal moves and the best move
+        message = {
+            "role": "user",
+            "content": f"It's {turn}'s turn. Follow these steps exactly:\n1. Get legal moves with get_legal_moves()\n2. Choose best move with get_best_move()\n3. Execute the move with make_move()",
+            "context": {
                 "board_state": board.fen(),
                 "legal_moves": legal_moves
-            })
+            }
         }
-    }
 
-    try:
-        # Initialize chat with explicit response handling
+        # Initialize chat with proper configuration
         chat_result = current_player.initiate_chat(
             opponent,
             message=message,
             clear_history=False,
-            max_turns=3  # Limit the back-and-forth
+            max_turns=1
         )
         
-        if not chat_result:
+        if not chat_result or not chat_result.chat_history:
+            logger.warning("No chat result or history generated")
             return None
-            
-        # Process response
-        if chat_result.chat_history:
-            for msg in reversed(chat_result.chat_history):
-                if isinstance(msg, dict) and "function_call" in msg:
-                    return chat_result
+
+        # Process chat history
+        move_made = None
+        explanation = ""
+        
+        for msg in chat_result.chat_history:
+            if not isinstance(msg, dict):
+                continue
+                
+            # Track explanations from best_move
+            if msg.get("role") == "function" and msg.get("name") == "get_best_move":
+                try:
+                    content = eval(msg.get("content", "[]"))
+                    if isinstance(content, list) and len(content) > 1:
+                        explanation = content[1]
+                except:
+                    pass
+                
+            # Log function calls
+            if "function_call" in msg:
+                func_call = msg.get("function_call", {})
+                logger.info(f"Function Call: {func_call.get('name')}")
+                logger.info(f"Arguments: {func_call.get('arguments')}")
+                
+                if func_call.get("name") == "make_move":
+                    try:
+                        args = json.loads(func_call.get("arguments", "{}"))
+                        move_made = args.get("move")
+                    except:
+                        pass
                     
-        return chat_result
+            elif "tool_calls" in msg:
+                for tool_call in msg.get("tool_calls", []):
+                    if isinstance(tool_call, dict) and "function" in tool_call:
+                        func = tool_call["function"]
+                        logger.info(f"Tool Call: {func.get('name')}")
+                        logger.info(f"Arguments: {func.get('arguments')}")
+                        
+                        if func.get("name") == "make_move":
+                            try:
+                                args = json.loads(func.get("arguments", "{}"))
+                                move_made = args.get("move")
+                            except:
+                                pass
+
+        # If we have a move, emit it to the frontend
+        if move_made:
+            result, explanation, is_game_over = make_move(move_made, explanation)
+            
+            # Emit move to frontend
+            socketio.emit('move_made', {
+                'move': move_made,
+                'result': result,
+                'explanation': explanation,
+                'fen': board.fen(),
+                'legal_moves': [m.uci() for m in board.legal_moves],
+                'game_over': is_game_over
+            })
+            
+            if is_game_over:
+                handle_game_end()
+                
+            return chat_result
+
+        logger.warning("No make_move call found in chat history")
+        return None
+            
     except Exception as e:
-        logger.error(f"Error in move sequence: {e}")
+        logger.error(f"Error in move sequence: {str(e)}", exc_info=True)
         return None
 
 def start_chess_game():
@@ -1141,16 +1244,34 @@ def export_pgn():
         logger.error(f"Error exporting PGN: {str(e)}")
         return str(e), 500
 
-@socketio.on('connect', namespace='/')
+@socketio.on('connect')
 def handle_connect():
-    emit('game_state', {
-        'fen': board.fen(),
-        'legal_moves': [move.uci() for move in board.legal_moves]
-    })
-    logger.info("Client connected")
+    """Handle client connection"""
+    try:
+        # Send initial game state
+        emit('game_state', {
+            'fen': board.fen(),
+            'legal_moves': [move.uci() for move in board.legal_moves],
+            'current_turn': 'White' if board.turn else 'Black'
+        })
+        logger.info(colored("Client connected - sent initial state", "green"))
+    except Exception as e:
+        logger.error(colored(f"Error in handle_connect: {str(e)}", "red"))
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    logger.info(colored("Client disconnected", "yellow"))
+
+@socketio.on_error()
+def error_handler(e):
+    """Handle socket errors"""
+    logger.error(colored(f"SocketIO error: {str(e)}", "red"))
+    emit('error', {'message': str(e)})
 
 @socketio.on('make_move')
 def handle_make_move(data):
+    """Handle move requests from frontend"""
     try:
         move = data['move']
         result, explanation, is_game_over = make_move(move)
@@ -1161,95 +1282,107 @@ def handle_make_move(data):
             'explanation': explanation,
             'fen': board.fen(),
             'legal_moves': [m.uci() for m in board.legal_moves],
-            'game_over': is_game_over
+            'game_over': is_game_over,
+            'turn': 'White' if board.turn else 'Black'
         }
         
-        emit('move_made', move_data)
+        # Emit move data immediately
+        emit('move_made', move_data, broadcast=True)
+        
+        # Also update game state
+        emit('game_state', {
+            'fen': board.fen(),
+            'legal_moves': [m.uci() for m in board.legal_moves],
+            'current_turn': 'White' if board.turn else 'Black'
+        }, broadcast=True)
         
         if is_game_over:
             handle_game_end()
             
-        logger.info(f"Move handled: {move}")
+        logger.info(colored(f"Move handled and emitted: {move}", "green"))
     except Exception as e:
-        logger.error(f"Error handling move: {str(e)}")
+        logger.error(colored(f"Error handling move: {str(e)}", "red"))
         emit('error', {'message': str(e)})
 
 @socketio.on('request_ai_move')
 def handle_ai_move():
     try:
-        logger.info("AI move requested")
+        logger.info(colored("AI move requested", "cyan"))
         
         if game_over:
             handle_game_end()
             return
             
+        # Get current board state and turn
+        turn = 'White' if board.turn else 'Black'
+        logger.info(colored(f"Current turn: {turn}", "yellow"))
+        logger.info(colored(f"Current FEN: {board.fen()}", "yellow"))
+        
         # Start or continue the game conversation
         chat_result = initiate_move_sequence()
         
-        # Debug logging
-        logger.info(f"Move sequence initiated: {chat_result is not None}")
-        
-        if chat_result and hasattr(chat_result, 'chat_history'):
-            messages = chat_result.chat_history
-            logger.info(f"Messages in sequence: {len(messages) if messages else 0}")
+        if not chat_result or not chat_result.chat_history:
+            logger.error(colored("No valid chat result generated", "red"))
+            return
             
-            # Process messages to find the last move
-            for message in reversed(messages):
-                if isinstance(message, dict):
-                    if "function_call" in message:
-                        func_call = message["function_call"]
-                        if func_call["name"] == "make_move":
-                            try:
-                                move_args = json.loads(func_call["arguments"])
-                                best_move = move_args.get("move")
-                                
-                                if best_move:
-                                    result, explanation, is_game_over = make_move(
-                                        best_move, 
-                                        getattr(chat_result, 'summary', 'Move selected based on position analysis.')
-                                    )
-                                    
-                                    emit('move_made', {
-                                        'move': best_move,
-                                        'result': result,
-                                        'explanation': explanation,
-                                        'evaluation': getattr(chat_result, 'cost', 0),
-                                        'fen': board.fen(),
-                                        'legal_moves': [m.uci() for m in board.legal_moves],
-                                        'game_over': is_game_over
-                                    })
-                                    
-                                    if is_game_over:
-                                        handle_game_end()
-                                    return
-                            except json.JSONDecodeError as e:
-                                logger.error(f"Error parsing move arguments: {e}")
-                            break
+        # Find the latest move that was executed
+        best_move = None
+        explanation = ""
+        evaluation = 0.0
         
-        # Fallback to direct move generation
-        logger.info("Falling back to direct move generation")
-        best_move, explanation, evaluation = get_best_move(
-            board.fen(), 
-            [m.uci() for m in board.legal_moves]
-        )
-        result, explanation, is_game_over = make_move(best_move, explanation)
-        
-        emit('move_made', {
-            'move': best_move,
-            'result': result,
-            'explanation': explanation,
-            'evaluation': evaluation,
-            'fen': board.fen(),
-            'legal_moves': [m.uci() for m in board.legal_moves],
-            'game_over': is_game_over
-        })
-        
-        if is_game_over:
-            handle_game_end()
+        for msg in reversed(chat_result.chat_history):
+            if not isinstance(msg, dict):
+                continue
+                
+            # Track explanations from best_move
+            if msg.get("role") == "function" and msg.get("name") == "get_best_move":
+                try:
+                    content = eval(msg.get("content", "[]"))
+                    if isinstance(content, list) and len(content) > 1:
+                        best_move = content[0]
+                        explanation = content[1]
+                        evaluation = float(content[2]) if len(content) > 2 else 0.0
+                except Exception as e:
+                    logger.error(colored(f"Error parsing best move: {str(e)}", "red"))
+
+        # If we found a move, update board and emit to frontend
+        if best_move:
+            logger.info(colored(f"Executing move: {best_move}", "green"))
+            
+            # Execute the move
+            result, explanation, is_game_over = make_move(best_move, explanation)
+            
+            # Ensure move_data includes all necessary information
+            move_data = {
+                'move': best_move,
+                'result': result,
+                'explanation': explanation,
+                'evaluation': evaluation,
+                'fen': board.fen(),
+                'legal_moves': [m.uci() for m in board.legal_moves],
+                'game_over': is_game_over,
+                'turn': 'White' if board.turn else 'Black'
+            }
+            
+            # Emit move with acknowledgment callback
+            socketio.emit('move_made', move_data, callback=lambda: logger.info("Move received by frontend"))
+            
+            # Update game state
+            socketio.emit('game_state', {
+                'fen': board.fen(),
+                'legal_moves': [m.uci() for m in board.legal_moves],
+                'current_turn': 'White' if board.turn else 'Black'
+            })
+            
+            if is_game_over:
+                handle_game_end()
+                
+        else:
+            logger.error(colored("No valid move found in chat history", "red"))
             
     except Exception as e:
-        logger.error(f"Error in AI move: {str(e)}")
-        emit('error', {'message': str(e)})
+        logger.error(colored(f"Error in AI move: {str(e)}", "red"))
+        socketio.emit('error', {'message': str(e)})
 
 @socketio.on('reset_game')
 def handle_reset_game():
