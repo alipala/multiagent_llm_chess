@@ -24,6 +24,9 @@ from typing import List, Tuple
 import sys
 from models.base_model import ChessEngine
 from typing import Any
+from termcolor import colored
+import json
+
 
 def log_startup_status():
     """Log detailed startup status"""
@@ -124,13 +127,14 @@ except Exception as e:
 config_list = config_list_from_json(
     "OAI_CONFIG_LIST",
     filter_dict={
-        "model": ["gpt-4o", "gpt-4-0314", "gpt-4-32k", "gpt-4-32k-0314", "gpt-4-32k-v0314"],
+        "model": ["gpt-4", "gpt-4-turbo-preview"],
     },
 )
 
 llm_config = {
     "config_list": config_list,
     "temperature": 0.7,
+    "model": "gpt-4-turbo-preview"
 }
 
 logger.info(f"Config list: {config_list}")
@@ -242,7 +246,7 @@ retriever = docsearch.as_retriever(search_kwargs={"k": 3})
 
 # Set up the RetrievalQA
 qa = RetrievalQA.from_chain_type(
-    llm=ChatOpenAI(model_name="gpt-4o"),
+    llm=ChatOpenAI(model_name="gpt-4-turbo-preview"),
     chain_type="stuff",
     retriever=retriever
 )
@@ -897,12 +901,14 @@ player_white = ConversableAgent(
     name="Player_White",
     system_message=white_player_system_message,
     llm_config=llm_config,
+    human_input_mode="NEVER"
 )
 
 player_black = ConversableAgent(
     name="Player_Black",
     system_message=black_player_system_message,
     llm_config=llm_config,
+    human_input_mode="NEVER"
 )
 
 board_proxy = ConversableAgent(
@@ -925,13 +931,104 @@ commentator_agent = ConversableAgent(
     human_input_mode="NEVER"
 )
 
+def log_agent_conversation(sender: str, recipient: str, message: Any):
+    """Log conversations between agents including function calls and responses"""
+    
+    # Print separator line
+    logger.info("="*80)
+    
+    # Print the basic message direction
+    logger.info(f"{sender} -> {recipient}")
+    
+    # Handle different message types
+    if isinstance(message, dict):
+        # Handle function/tool calls
+        if "function_call" in message:
+            func_call = message["function_call"]
+            logger.info(colored(f"Function Call: {func_call['name']}", "green"))
+            logger.info(f"Arguments: {func_call.get('arguments', '{}')}")
+            
+        elif "tool_calls" in message:
+            for tool_call in message["tool_calls"]:
+                func = tool_call["function"]
+                logger.info(colored(f"Tool Call ({tool_call['id']}): {func['name']}", "green"))
+                logger.info(f"Arguments: {func.get('arguments', '{}')}")
+                
+        # Handle function/tool responses
+        elif message.get("role") in ["function", "tool"]:
+            logger.info(colored("Response from execution:", "yellow"))
+            logger.info(message.get("content", ""))
+            
+        # Handle regular content
+        elif "content" in message:
+            logger.info(message["content"])
+            
+    else:
+        # Handle string messages
+        logger.info(message)
+        
+    # Print separator
+    logger.info("-"*80)
+
+# Add these hooks to both agents
+def register_conversation_logging(agent: ConversableAgent):
+    """Register logging hooks for an agent"""
+    
+    def log_process_message(sender, message, recipient, silent):
+        log_agent_conversation(sender.name, recipient.name, message)
+        return message
+        
+    def log_messages_before_reply(messages):
+        if messages and len(messages) > 0:
+            last_msg = messages[-1]
+            if "sender" in last_msg:
+                log_agent_conversation(
+                    last_msg["sender"].name,
+                    agent.name,
+                    last_msg
+                )
+        return messages
+    
+    agent.register_hook("process_message_before_send", log_process_message)
+    agent.register_hook("process_all_messages_before_reply", log_messages_before_reply)
+
+# Register logging for all agents
+register_conversation_logging(player_white)
+register_conversation_logging(player_black) 
+register_conversation_logging(board_proxy)
+register_conversation_logging(commentator_agent)
+
+# Function registration
 # Function registration
 for caller in [player_white, player_black]:
-    register_function(is_game_over, caller=caller, executor=board_proxy, name="is_game_over", description="Check if the game is over.")
-    register_function(make_move, caller=caller, executor=board_proxy, name="make_move", description="Make a move on the chess board.")
-    register_function(get_best_move, caller=caller, executor=board_proxy, name="get_best_move", description="Get the best move based on Chess engine analysis.")
-    register_function(get_legal_moves, caller=caller, executor=board_proxy, name="get_legal_moves", description="Get a list of legal moves in the current position.")
-    register_function(generate_commentary, caller=commentator_agent, executor=board_proxy, name="generate_commentary", description="Generate chess commentary")
+    register_function(
+        is_game_over, 
+        caller=caller, 
+        executor=board_proxy, 
+        name="is_game_over",
+        description="Check if the game is over."
+    )
+    register_function(
+        make_move,
+        caller=caller,
+        executor=board_proxy,
+        name="make_move",
+        description="Make a move on the chess board in UCI format (e.g. e2e4). Returns the move result and game state."
+    )
+    register_function(
+        get_best_move,
+        caller=caller,
+        executor=board_proxy,
+        name="get_best_move", 
+        description="Get the best move based on Chess engine analysis. Takes board state in FEN format and list of legal moves in UCI format as input."
+    )
+    register_function(
+        get_legal_moves,
+        caller=caller,
+        executor=board_proxy,
+        name="get_legal_moves",
+        description="Get a list of legal moves in the current position. Returns list of moves in UCI format."
+    )
 
 # Register nested chats
 player_white.register_nested_chats(
@@ -963,6 +1060,72 @@ for player in [player_white, player_black]:
         trigger=commentator_agent, 
         chat_queue=[{"sender": commentator_agent, "recipient": player}]
     )
+
+def initiate_move_sequence():
+    """Initiate a sequence of moves between chess agents"""
+    # Get legal moves first
+    legal_moves = [m.uci() for m in board.legal_moves]
+    turn = 'White' if board.turn else 'Black'
+    current_player = player_white if turn == 'White' else player_black
+    opponent = player_black if turn == 'White' else player_white
+    
+    # Create message with proper function call structure
+    message = {
+        "content": f"It's {turn}'s turn. Legal moves: {', '.join(legal_moves)}. Make your move.",
+        "function_call": {
+            "name": "get_legal_moves",
+            "arguments": json.dumps({
+                "board_state": board.fen(),
+                "legal_moves": legal_moves
+            })
+        }
+    }
+
+    try:
+        # Initialize chat with explicit response handling
+        chat_result = current_player.initiate_chat(
+            opponent,
+            message=message,
+            clear_history=False,
+            max_turns=3  # Limit the back-and-forth
+        )
+        
+        if not chat_result:
+            return None
+            
+        # Process response
+        if chat_result.chat_history:
+            for msg in reversed(chat_result.chat_history):
+                if isinstance(msg, dict) and "function_call" in msg:
+                    return chat_result
+                    
+        return chat_result
+    except Exception as e:
+        logger.error(f"Error in move sequence: {e}")
+        return None
+
+def start_chess_game():
+    """Start the chess game conversation between agents"""
+    try:
+        # Get legal moves first
+        legal_moves = [m.uci() for m in board.legal_moves]
+        logger.info(f"Legal moves: {legal_moves}")
+        
+        # Initiate conversation from Black to White
+        chat_result = player_black.initiate_chat(
+            player_white,
+            message={
+                "content": "Let's play chess! Your move.",
+                "context": {"legal_moves": legal_moves}
+            },
+            clear_history=True
+        )
+        
+        return chat_result
+        
+    except Exception as e:
+        logger.error(f"Error in start_chess_game: {str(e)}")
+        return None
 
 # Flask routes
 @app.route('/')
@@ -1020,7 +1183,51 @@ def handle_ai_move():
             handle_game_end()
             return
             
-        # Rest of the AI move handling code...
+        # Start or continue the game conversation
+        chat_result = initiate_move_sequence()
+        
+        # Debug logging
+        logger.info(f"Move sequence initiated: {chat_result is not None}")
+        
+        if chat_result and hasattr(chat_result, 'chat_history'):
+            messages = chat_result.chat_history
+            logger.info(f"Messages in sequence: {len(messages) if messages else 0}")
+            
+            # Process messages to find the last move
+            for message in reversed(messages):
+                if isinstance(message, dict):
+                    if "function_call" in message:
+                        func_call = message["function_call"]
+                        if func_call["name"] == "make_move":
+                            try:
+                                move_args = json.loads(func_call["arguments"])
+                                best_move = move_args.get("move")
+                                
+                                if best_move:
+                                    result, explanation, is_game_over = make_move(
+                                        best_move, 
+                                        getattr(chat_result, 'summary', 'Move selected based on position analysis.')
+                                    )
+                                    
+                                    emit('move_made', {
+                                        'move': best_move,
+                                        'result': result,
+                                        'explanation': explanation,
+                                        'evaluation': getattr(chat_result, 'cost', 0),
+                                        'fen': board.fen(),
+                                        'legal_moves': [m.uci() for m in board.legal_moves],
+                                        'game_over': is_game_over
+                                    })
+                                    
+                                    if is_game_over:
+                                        handle_game_end()
+                                    return
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Error parsing move arguments: {e}")
+                            break
+        
+        # Fallback to direct move generation
+        logger.info("Falling back to direct move generation")
         best_move, explanation, evaluation = get_best_move(
             board.fen(), 
             [m.uci() for m in board.legal_moves]

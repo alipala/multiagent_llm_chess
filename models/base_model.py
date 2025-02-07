@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ChessEngine:
     def __init__(self, temperature: float = 0.7):
         self.chat = ChatOpenAI(
-            model="gpt-4o",
+            model="gpt-4-turbo-preview",
             temperature=temperature
         )
         self.logger = logging.getLogger(__name__)
