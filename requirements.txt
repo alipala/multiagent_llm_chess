@@ -1,7 +1,7 @@
 flask
 flask-socketio
 python-chess
-pyautogen
+ag2
 langchain
 langchain-openai
 chromadb
@@ -18,7 +18,7 @@ langchain-community>=0.0.10
 langchain-openai>=0.0.2
 chromadb>=0.5.12
 dask[complete]
-pyautogen>=0.3.0
+ag2>=0.3.0
 ipywidgets
 nest_asyncio
 flaml[automl]
